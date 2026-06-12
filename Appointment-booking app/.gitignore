@@ -1,0 +1,37 @@
+# Logs
+logs/
+*.log
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Dependencies
+node_modules/
+
+# Database
+*.db
+*.sqlite
+
+# Build outputs
+dist/
+build/
+coverage/
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# IDE
+.idea/
+.vscode/
+*.sublime-*
+
+# nixpacks cache
+.nixpacks/
+
+# Windows special
+nul

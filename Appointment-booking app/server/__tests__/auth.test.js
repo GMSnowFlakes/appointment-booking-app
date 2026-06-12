@@ -1,23 +1,22 @@
 const request = require('supertest');
-const path = require('path');
-const fs = require('fs');
-const os = require('os');
+const { makeTestSchema } = require('./helpers');
 
-// Use a fresh database for this test suite
-const testDbPath = path.join(os.tmpdir(), `appointment-test-auth-${Date.now()}.db`);
-process.env.DB_PATH = testDbPath;
+const testSchema = makeTestSchema();
+process.env.PG_SCHEMA = testSchema;
 process.env.JWT_SECRET = 'test-secret-key';
 
 // Clear db cache and import the app
 delete require.cache[require.resolve('../db')];
 const { app, initializeDb } = require('../index');
+const { dropSchema, closePool } = require('../db');
 
 beforeAll(async () => {
   await initializeDb();
 });
 
-afterAll(() => {
-  try { fs.unlinkSync(testDbPath); } catch (e) { /* ignore */ }
+afterAll(async () => {
+  await dropSchema(testSchema);
+  await closePool();
 });
 
 describe('Auth API', () => {

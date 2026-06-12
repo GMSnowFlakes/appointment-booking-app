@@ -10,7 +10,7 @@ const logger = require('../logger');
 const router = express.Router();
 
 // POST /register
-router.post('/register', (req, res) => {
+router.post('/register', async (req, res) => {
   const v = validate(registerSchema, req.body);
   if (!v.valid) {
     return sendValidationError(res, v.error);
@@ -18,15 +18,24 @@ router.post('/register', (req, res) => {
 
   const { name, email, password } = v.data;
 
-  const existing = queryOne('SELECT id FROM users WHERE email = ?', [email]);
+  const existing = await queryOne('SELECT id FROM users WHERE email = $1', [email]);
   if (existing) {
     return sendConflictError(res, 'Email already registered');
   }
 
   const hashedPassword = bcrypt.hashSync(password, 10);
-  const result = run('INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)', [name, email, hashedPassword, 'customer']);
+  const result = await run(
+    `INSERT INTO users (name, email, password, role)
+     VALUES ($1, $2, $3, $4)
+     RETURNING id`,
+    [name, email, hashedPassword, 'customer']
+  );
 
-  const token = jwt.sign({ id: result.lastInsertRowid, email, name, role: 'customer' }, JWT_SECRET, { expiresIn: '7d' });
+  const token = jwt.sign(
+    { id: result.lastInsertRowid, email, name, role: 'customer' },
+    JWT_SECRET,
+    { expiresIn: '7d' }
+  );
 
   logger.info({ userId: result.lastInsertRowid, email }, 'User registered');
 
@@ -38,7 +47,7 @@ router.post('/register', (req, res) => {
 });
 
 // POST /login
-router.post('/login', (req, res) => {
+router.post('/login', async (req, res) => {
   const v = validate(loginSchema, req.body);
   if (!v.valid) {
     return sendValidationError(res, v.error);
@@ -46,7 +55,7 @@ router.post('/login', (req, res) => {
 
   const { email } = v.data;
 
-  const user = queryOne('SELECT * FROM users WHERE email = ?', [email]);
+  const user = await queryOne('SELECT * FROM users WHERE email = $1', [email]);
 
   if (!user) {
     logger.warn({ email }, 'Login failed: user not found');
@@ -59,7 +68,11 @@ router.post('/login', (req, res) => {
     return sendError(res, new ApiError(401, 'Invalid email or password'));
   }
 
-  const token = jwt.sign({ id: user.id, email: user.email, name: user.name, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+  const token = jwt.sign(
+    { id: user.id, email: user.email, name: user.name, role: user.role },
+    JWT_SECRET,
+    { expiresIn: '7d' }
+  );
 
   logger.info({ userId: user.id, email, role: user.role }, 'User logged in');
 

@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 
 export default function AuthForm({ mode, onSuccess, onToggle }) {
   const { login, register } = useAuth();
+  const toast = useToast();
   const [form, setForm] = useState({ name: '', email: '', password: '' });
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -19,8 +21,13 @@ export default function AuthForm({ mode, onSuccess, onToggle }) {
 
     setSubmitting(true);
     try {
-      if (isLogin) await login(form.email, form.password);
-      else await register(form.name, form.email, form.password);
+      if (isLogin) {
+        await login(form.email, form.password);
+        toast.success(`Welcome back!`);
+      } else {
+        await register(form.name, form.email, form.password);
+        toast.success(`Account created! Welcome, ${form.name}!`);
+      }
       onSuccess?.();
     } catch (err) {
       setError(err.message);

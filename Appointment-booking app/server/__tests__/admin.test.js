@@ -1,21 +1,23 @@
 const request = require('supertest');
-const path = require('path');
-const fs = require('fs');
-const os = require('os');
+const { makeTestSchema, seedTestData, authHeader } = require('./helpers');
 
-const testDbPath = path.join(os.tmpdir(), `appointment-test-admin-${Date.now()}.db`);
-process.env.DB_PATH = testDbPath;
+const testSchema = makeTestSchema();
+process.env.PG_SCHEMA = testSchema;
 process.env.JWT_SECRET = 'test-secret-key';
+delete process.env.RESEND_API_KEY;
 
 delete require.cache[require.resolve('../db')];
+delete require.cache[require.resolve('../email')];
+delete require.cache[require.resolve('../index')];
+
 const { app, initializeDb } = require('../index');
-const { seedTestData, authHeader } = require('./helpers');
+const { dropSchema, closePool } = require('../db');
 
 let adminToken, customerToken;
 
 beforeAll(async () => {
   await initializeDb();
-  seedTestData();
+  await seedTestData();
 
   const adminLogin = await request(app)
     .post('/api/auth/login')
@@ -28,8 +30,9 @@ beforeAll(async () => {
   customerToken = customerLogin.body.token;
 });
 
-afterAll(() => {
-  try { fs.unlinkSync(testDbPath); } catch (e) { /* ignore */ }
+afterAll(async () => {
+  await dropSchema(testSchema);
+  await closePool();
 });
 
 describe('Admin API', () => {
@@ -215,7 +218,6 @@ describe('Admin API', () => {
     });
 
     it('should delete a user', async () => {
-      // Create a temporary user to delete
       const registerRes = await request(app)
         .post('/api/auth/register')
         .send({ name: 'Delete Me', email: 'delete@test.com', password: 'password123' });

@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { PWAProvider } from './context/PWAContext';
+import { ToastProvider } from './context/ToastContext';
 import { useBusiness } from './context/BusinessContext';
 import Navbar from './components/Navbar';
 import ServiceList from './components/ServiceList';
@@ -9,8 +10,10 @@ import AuthForm from './components/AuthForm';
 import BookingForm from './components/BookingForm';
 import AppointmentList from './components/AppointmentList';
 import AdminDashboard from './components/AdminDashboard';
+import NotificationPreferences from './components/NotificationPreferences';
 
-// Footer with dynamic business name and color
+// ─── Footer ─────────────────────────────────────
+
 function Footer() {
   const { settings } = useBusiness();
   return (
@@ -33,6 +36,33 @@ function Footer() {
     </footer>
   );
 }
+
+// ─── Page Transition Wrapper ───────────────────
+
+function PageTransition({ page, children }) {
+  const prevPage = useRef(page);
+  const [animClass, setAnimClass] = useState('');
+
+  useEffect(() => {
+    if (prevPage.current !== page) {
+      setAnimClass('animate-page-out');
+      const timer = setTimeout(() => {
+        setAnimClass('animate-page-in');
+        prevPage.current = page;
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+    prevPage.current = page;
+  }, [page]);
+
+  return (
+    <div className={`transition-opacity duration-150 ${animClass}`}>
+      {children}
+    </div>
+  );
+}
+
+// ─── App Content ───────────────────────────────
 
 function AppContent() {
   const { user } = useAuth();
@@ -61,6 +91,7 @@ function AppContent() {
       case 'auth': return <AuthForm key={authMode} mode={authMode} onSuccess={handleAuthSuccess} onToggle={() => setAuthMode(authMode === 'login' ? 'register' : 'login')} />;
       case 'book': return <BookingForm key={refreshAppointments} onBooked={handleBookingSuccess} />;
       case 'appointments': return <AppointmentList key={refreshAppointments} />;
+      case 'notifications': return <NotificationPreferences />;
       case 'admin': return <AdminDashboard />;
       case 'services':
       default: return <ServiceList />;
@@ -70,18 +101,26 @@ function AppContent() {
   return (
     <div className="min-h-screen bg-surface-warm relative">
       <Navbar currentPage={page === 'auth' ? authMode : page} onNavigate={handleNavigate} />
-      <main className="relative z-10">{renderPage()}</main>
+      <main className="relative z-10">
+        <PageTransition page={page}>
+          {renderPage()}
+        </PageTransition>
+      </main>
       <Footer />
     </div>
   );
 }
+
+// ─── Root App ───────────────────────────────────
 
 export default function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
         <PWAProvider>
-          <AppContent />
+          <ToastProvider>
+            <AppContent />
+          </ToastProvider>
         </PWAProvider>
       </AuthProvider>
     </ThemeProvider>

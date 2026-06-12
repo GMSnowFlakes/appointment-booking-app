@@ -83,6 +83,14 @@ const serviceSearchSchema = z.object({
   category: z.string().trim().max(100).optional(),
 });
 
+// ─── Notification Preferences ─────────────────────
+
+const notificationPreferencesSchema = z.object({
+  email_reminders: z.boolean({
+    errorMap: () => ({ message: 'email_reminders must be a boolean' }),
+  }),
+});
+
 // ─── Business Settings ───────────────────────────
 
 const BUSINESS_TYPES = [
@@ -122,6 +130,7 @@ module.exports = {
   registerSchema,
   businessSettingsSchema,
   BUSINESS_TYPES,
+  notificationPreferencesSchema,
   loginSchema,
   createServiceSchema,
   updateServiceSchema,

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import AvailabilityCalendar from './AvailabilityCalendar';
 
 const STEPS = [
@@ -10,6 +11,7 @@ const STEPS = [
 
 export default function BookingForm({ onBooked }) {
   const { user, fetchWithAuth } = useAuth();
+  const toast = useToast();
   const [services, setServices] = useState([]);
   const [selectedService, setSelectedService] = useState('');
   const [date, setDate] = useState('');
@@ -60,6 +62,7 @@ export default function BookingForm({ onBooked }) {
       });
       const data = await res.json();
       if (res.ok) {
+        toast.success('Appointment booked successfully! 🎉');
         setMessage({ type: 'success', text: 'Appointment booked successfully! 🎉' });
         setSelectedService('');
         setDate('');
@@ -68,6 +71,7 @@ export default function BookingForm({ onBooked }) {
         setStep(1);
         onBooked?.();
       } else {
+        toast.error(data.error || 'Failed to book appointment');
         setMessage({ type: 'error', text: data.error || 'Failed to book appointment' });
       }
     } catch (err) {

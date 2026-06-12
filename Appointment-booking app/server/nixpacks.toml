@@ -1,0 +1,17 @@
+# nixpacks.toml — Railway deployment config
+# Railway uses Nixpacks to auto-detect Node.js and build/deply the app.
+
+[phases.setup]
+nixPkgs = ["nodejs", "openssh"]
+
+[phases.install]
+cmds = ["npm install"]
+
+[phases.build]
+cmds = []
+
+[start]
+cmd = "node index.js"
+
+[build.environment]
+NODE_ENV = "production"

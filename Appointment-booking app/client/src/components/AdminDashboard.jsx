@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { useBusiness } from '../context/BusinessContext';
 import ConfirmDialog from './ConfirmDialog';
 
@@ -253,6 +254,7 @@ function EmptyBlock({ icon, title, message }) {
 
 function SettingsTab() {
   const { fetchWithAuth } = useAuth();
+  const toast = useToast();
   const { settings, refresh, getBusinessTypeLabel } = useBusiness();
   const [form, setForm] = useState({ business_name: '', business_type: '', business_description: '', primary_color: '#e11d48', category_colors: {} });
   const [saving, setSaving] = useState(false);
@@ -301,9 +303,11 @@ function SettingsTab() {
       });
       const data = await res.json();
       if (res.ok) {
+        toast.success('Business settings saved!');
         setMessage({ type: 'success', text: 'Business settings saved successfully!' });
         refresh();
       } else {
+        toast.error(data.error || 'Failed to save settings');
         setMessage({ type: 'error', text: data.error || 'Failed to save settings' });
       }
     } catch (err) {
@@ -452,6 +456,7 @@ function SettingsTab() {
 
 function ServicesTab() {
   const { fetchWithAuth } = useAuth();
+  const toast = useToast();
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -481,7 +486,7 @@ function ServicesTab() {
     if (!svc) return;
     try {
       const res = await fetchWithAuth(`/api/admin/services/${svc.id}`, { method: 'DELETE' });
-      if (res.ok) { setDeleteConfirm({ open: false, service: null }); fetchServices(); }
+      if (res.ok) { toast.success('Service deactivated'); setDeleteConfirm({ open: false, service: null }); fetchServices(); }
     } catch { /* silent */ }
   }
 
@@ -490,7 +495,7 @@ function ServicesTab() {
     if (!svc) return;
     try {
       const res = await fetchWithAuth(`/api/admin/services/${svc.id}/restore`, { method: 'POST' });
-      if (res.ok) { setRestoreConfirm({ open: false, service: null }); fetchServices(); }
+      if (res.ok) { toast.success('Service restored'); setRestoreConfirm({ open: false, service: null }); fetchServices(); }
     } catch { /* silent */ }
   }
 
@@ -600,6 +605,7 @@ function ServicesTab() {
 
 function AppointmentsTab() {
   const { fetchWithAuth } = useAuth();
+  const toast = useToast();
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -736,6 +742,7 @@ function AppointmentsTab() {
 
 function UsersTab() {
   const { user: currentUser, fetchWithAuth } = useAuth();
+  const toast = useToast();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -762,7 +769,9 @@ function UsersTab() {
       const res = await fetchWithAuth(`/api/admin/users/${target.id}/role`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: newRole }),
       });
-      if (res.ok) { setRoleChange({ open: false, user: null, newRole: '' }); fetchUsers(); }
+      if (res.ok) {
+        toast.success(`User ${newRole === 'admin' ? 'promoted to' : 'demoted to'} ${newRole}`);
+        setRoleChange({ open: false, user: null, newRole: '' }); fetchUsers(); }
     } catch { /* silent */ }
   }
 
@@ -771,7 +780,7 @@ function UsersTab() {
     if (!target) return;
     try {
       const res = await fetchWithAuth(`/api/admin/users/${target.id}`, { method: 'DELETE' });
-      if (res.ok) { setDeleteConfirm({ open: false, user: null }); fetchUsers(); }
+      if (res.ok) { toast.success('User deleted'); setDeleteConfirm({ open: false, user: null }); fetchUsers(); }
     } catch { /* silent */ }
   }
 

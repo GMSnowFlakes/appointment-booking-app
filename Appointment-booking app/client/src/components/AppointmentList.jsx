@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import ConfirmDialog from './ConfirmDialog';
 import RescheduleModal from './RescheduleModal';
+import { AppointmentCardSkeleton } from './Skeleton';
 
 const STATUS_STYLES = {
   confirmed: { badge: 'bg-success-bg text-success border-green-200', dot: 'bg-success' },
@@ -89,6 +91,7 @@ function AppointmentCard({ appointment, onCancelClick, onRescheduleClick }) {
 
 export default function AppointmentList() {
   const { user, fetchWithAuth } = useAuth();
+  const toast = useToast();
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -140,7 +143,10 @@ export default function AppointmentList() {
     setCancelling(true);
     try {
       const res = await fetchWithAuth(`/api/appointments/${apt.id}/cancel`, { method: 'PUT' });
-      if (res.ok) { setCancelDialog({ open: false, appointment: null }); fetchAppointments(); }
+      if (res.ok) {
+        toast.info('Appointment cancelled');
+        setCancelDialog({ open: false, appointment: null }); fetchAppointments();
+      }
     } catch { /* silent */ }
     finally { setCancelling(false); }
   }
@@ -225,11 +231,10 @@ export default function AppointmentList() {
 
       {/* Loading */}
       {loading && (
-        <div className="flex items-center justify-center py-16">
-          <div className="flex flex-col items-center gap-3">
-            <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-            <p className="text-text-secondary text-sm">Loading appointments...</p>
-          </div>
+        <div className="space-y-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <AppointmentCardSkeleton key={i} />
+          ))}
         </div>
       )}
 
@@ -260,12 +265,22 @@ export default function AppointmentList() {
               ))}
             </div>
           ) : (
-            <div className="bg-white rounded-2xl border border-border p-14 text-center animate-fade-in shadow-sm">
-              <div className="w-16 h-16 mx-auto mb-4 bg-primary-bg rounded-2xl flex items-center justify-center text-2xl">📭</div>
-              <h3 className="text-lg font-serif font-semibold text-text mb-1">No Appointments Yet</h3>
-              <p className="text-text-secondary text-sm">
-                {filter === 'all' ? "You haven't booked any appointments yet." :
-                 filter === 'upcoming' ? 'No upcoming appointments.' : 'No past appointments.'}
+            <div className="bg-white rounded-2xl border border-border p-14 sm:p-16 text-center animate-fade-in shadow-sm">
+              <div className="relative w-20 h-20 mx-auto mb-5">
+                <div className="absolute inset-0 bg-primary-bg rounded-full animate-pulse-soft" />
+                <div className="relative w-full h-full flex items-center justify-center text-3xl">
+                  {filter === 'past' ? '📋' : filter === 'upcoming' ? '🔮' : '📭'}
+                </div>
+              </div>
+              <h3 className="text-xl font-serif font-semibold text-text mb-2">
+                {filter === 'all' ? 'No Appointments Yet' :
+                 filter === 'upcoming' ? 'No Upcoming Appointments' : 'No Past Appointments'}
+              </h3>
+              <p className="text-text-secondary text-sm max-w-xs mx-auto leading-relaxed">
+                {filter === 'all'
+                  ? "You haven't booked any appointments yet. Browse our services to get started!"
+                 : filter === 'upcoming'
+                  ? 'You have no upcoming appointments scheduled. Book one now!' : 'Your past appointment history will appear here.'}
               </p>
             </div>
           )}

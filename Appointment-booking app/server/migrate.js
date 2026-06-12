@@ -1,51 +1,54 @@
 const fs = require('fs');
 const path = require('path');
-const { getDb, queryAll, queryOne, run, saveDatabase } = require('./db');
+const crypto = require('crypto');
+const { queryAll, queryOne, run, getDb } = require('./db');
 const logger = require('./logger');
 
 const MIGRATIONS_TABLE = '_migrations';
 const MIGRATIONS_DIR = path.join(__dirname, 'migrations');
 
 /**
- * Ensure the migrations tracking table exists
+ * Ensure the migrations tracking table exists (Postgres syntax).
  */
-function ensureMigrationsTable() {
-  const db = getDb();
-  db.run(`
+async function ensureMigrationsTable() {
+  await getDb().query(`
     CREATE TABLE IF NOT EXISTS ${MIGRATIONS_TABLE} (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       name TEXT NOT NULL UNIQUE,
-      applied_at TEXT DEFAULT (datetime('now')),
+      applied_at TIMESTAMP DEFAULT NOW(),
       checksum TEXT
     )
   `);
-  saveDatabase();
 }
 
 /**
- * Compute a simple checksum for a migration file to detect tampering
+ * Compute a simple checksum for a migration file to detect tampering.
  */
 function computeChecksum(content) {
-  const crypto = require('crypto');
   return crypto.createHash('sha256').update(content).digest('hex').slice(0, 16);
 }
 
 /**
- * Get list of already-applied migration names
+ * Get list of already-applied migration names.
  */
-function getAppliedMigrations() {
-  return queryAll(`SELECT name, checksum FROM ${MIGRATIONS_TABLE} ORDER BY id`);
+async function getAppliedMigrations() {
+  return await queryAll(`SELECT name, checksum FROM ${MIGRATIONS_TABLE} ORDER BY id`);
 }
 
 /**
- * Mark a migration as applied
+ * Mark a migration as applied.
  */
-function markApplied(name, checksum) {
-  run(`INSERT OR IGNORE INTO ${MIGRATIONS_TABLE} (name, checksum) VALUES (?, ?)`, [name, checksum]);
+async function markApplied(name, checksum) {
+  await run(
+    `INSERT INTO ${MIGRATIONS_TABLE} (name, checksum)
+     VALUES ($1, $2)
+     ON CONFLICT (name) DO NOTHING`,
+    [name, checksum]
+  );
 }
 
 /**
- * Discover migration files on disk, sorted by filename
+ * Discover migration files on disk, sorted by filename.
  */
 function discoverMigrations() {
   if (!fs.existsSync(MIGRATIONS_DIR)) {
@@ -54,7 +57,7 @@ function discoverMigrations() {
 
   const files = fs.readdirSync(MIGRATIONS_DIR)
     .filter(f => f.endsWith('.js'))
-    .sort();  // alphabetical sort ensures 001 before 002 before 003
+    .sort();
 
   return files.map(file => {
     const fullPath = path.join(MIGRATIONS_DIR, file);
@@ -69,12 +72,12 @@ function discoverMigrations() {
 }
 
 /**
- * Run all pending migrations
+ * Run all pending migrations.
  * Returns the number of migrations applied.
  */
 async function runMigrations() {
-  ensureMigrationsTable();
-  const applied = getAppliedMigrations();
+  await ensureMigrationsTable();
+  const applied = await getAppliedMigrations();
   const appliedNames = new Set(applied.map(m => m.name));
   const pending = discoverMigrations().filter(m => !appliedNames.has(m.name));
 
@@ -100,8 +103,8 @@ async function runMigrations() {
       // Migration modules export an async or sync function that receives helpers
       const mod = require(migration.fullPath);
       const migrateFn = mod.default || mod.up || mod;
-      await migrateFn({ db: getDb, queryAll, queryOne, run, saveDatabase, logger });
-      markApplied(migration.name, checksum);
+      await migrateFn({ db: getDb, queryAll, queryOne, run, logger });
+      await markApplied(migration.name, checksum);
       count++;
       logger.info({ migration: migration.name }, 'Migration applied successfully');
     } catch (err) {
@@ -115,11 +118,11 @@ async function runMigrations() {
 }
 
 /**
- * List migrations and their status
+ * List migrations and their status.
  */
-function listMigrations() {
-  ensureMigrationsTable();
-  const applied = getAppliedMigrations();
+async function listMigrations() {
+  await ensureMigrationsTable();
+  const applied = await getAppliedMigrations();
   const appliedSet = new Map(applied.map(m => [m.name, m]));
   const discovered = discoverMigrations();
 
@@ -136,32 +139,26 @@ function listMigrations() {
 }
 
 // ─── CLI ────────────────────────────────
-// Run directly: node migrate.js [--list]
 if (require.main === module) {
   const args = process.argv.slice(2);
 
-  if (args.includes('--list') || args.includes('list')) {
-    const { initDatabase } = require('./db');
-    initDatabase().then(() => {
-      listMigrations();
-      process.exit(0);
-    }).catch(err => {
-      console.error('Failed:', err);
-      process.exit(1);
-    });
-  } else {
-    // Run pending migrations
-    const { initDatabase } = require('./db');
-    initDatabase().then(() => {
-      return runMigrations();
-    }).then(count => {
+  (async () => {
+    const { initDatabase, closePool } = require('./db');
+    await initDatabase();
+
+    if (args.includes('--list') || args.includes('list')) {
+      await listMigrations();
+    } else {
+      const count = await runMigrations();
       console.log(`✅ ${count} migration(s) applied`);
-      process.exit(0);
-    }).catch(err => {
-      console.error('Migration failed:', err);
-      process.exit(1);
-    });
-  }
+    }
+
+    await closePool();
+    process.exit(0);
+  })().catch(err => {
+    console.error('Migration failed:', err);
+    process.exit(1);
+  });
 }
 
 module.exports = { runMigrations, listMigrations };

@@ -1,7 +1,7 @@
 const express = require('express');
 const { queryAll, queryOne, run } = require('../db');
 const { authenticateToken } = require('../middleware/auth');
-const { sendBookingConfirmation, sendCancellationConfirmation } = require('../email');
+const { sendBookingConfirmation, sendCancellationConfirmation, sendRescheduleConfirmation, sendAdminBookingNotification, sendAdminCancellationNotification, sendAdminRescheduleNotification } = require('../email');
 const {
   createAppointmentSchema,
   rescheduleSchema,
@@ -13,8 +13,8 @@ const logger = require('../logger');
 
 const router = express.Router();
 
-// GET /appointments/availability - Get booked slots for a date range (public, no auth required)
-router.get('/availability', (req, res) => {
+// GET /appointments/availability - Get booked slots for a date range (public, no auth)
+router.get('/availability', async (req, res) => {
   const { start, end, date } = req.query;
   let dateStart = start;
   let dateEnd = end;
@@ -28,8 +28,8 @@ router.get('/availability', (req, res) => {
     return sendValidationError(res, 'Provide date, or start and end query params (YYYY-MM-DD)');
   }
 
-  const appointments = queryAll(`
-    SELECT 
+  const appointments = await queryAll(`
+    SELECT
       a.date,
       a.time,
       a.status,
@@ -38,7 +38,7 @@ router.get('/availability', (req, res) => {
       s.duration as service_duration
     FROM appointments a
     JOIN services s ON a.service_id = s.id
-    WHERE a.date >= ? AND a.date <= ? AND a.status != 'cancelled'
+    WHERE a.date >= $1 AND a.date <= $2 AND a.status != 'cancelled'
     ORDER BY a.date, a.time
   `, [dateStart, dateEnd]);
 
@@ -70,46 +70,52 @@ router.get('/availability', (req, res) => {
 });
 
 // GET /appointments - Get user's appointments with pagination & date filtering
-router.get('/', authenticateToken, (req, res) => {
+router.get('/', authenticateToken, async (req, res) => {
   const q = validate(appointmentFilterSchema, req.query);
   const filter = q.valid ? q.data : { page: 1, limit: 10 };
 
-  const conditions = ['a.user_id = ?'];
+  const conditions = ['a.user_id = $1'];
   const params = [req.user.id];
+  let paramIdx = 2;
 
   if (filter.status) {
     const statuses = filter.status.split(',').map(s => s.trim()).filter(Boolean);
     if (statuses.length === 1) {
-      conditions.push('a.status = ?');
+      conditions.push(`a.status = $${paramIdx}`);
       params.push(statuses[0]);
+      paramIdx++;
     } else if (statuses.length > 1) {
-      conditions.push(`a.status IN (${statuses.map(() => '?').join(',')})`);
+      const placeholders = statuses.map((_, i) => `$${paramIdx + i}`);
+      conditions.push(`a.status IN (${placeholders.join(',')})`);
       params.push(...statuses);
+      paramIdx += statuses.length;
     }
   }
 
   if (filter.date_from) {
-    conditions.push('a.date >= ?');
+    conditions.push(`a.date >= $${paramIdx}`);
     params.push(filter.date_from);
+    paramIdx++;
   }
 
   if (filter.date_to) {
-    conditions.push('a.date <= ?');
+    conditions.push(`a.date <= $${paramIdx}`);
     params.push(filter.date_to);
+    paramIdx++;
   }
 
   const whereClause = conditions.join(' AND ');
 
-  const countResult = queryOne(
-    `SELECT COUNT(*) as total FROM appointments a WHERE ${whereClause}`,
+  const countResult = await queryOne(
+    `SELECT COUNT(*)::int as total FROM appointments a WHERE ${whereClause}`,
     params
   );
   const total = countResult?.total || 0;
 
   const offset = (filter.page - 1) * filter.limit;
 
-  const appointments = queryAll(`
-    SELECT 
+  const appointments = await queryAll(`
+    SELECT
       a.id,
       a.date,
       a.time,
@@ -124,7 +130,7 @@ router.get('/', authenticateToken, (req, res) => {
     JOIN services s ON a.service_id = s.id
     WHERE ${whereClause}
     ORDER BY a.date DESC, a.time DESC
-    LIMIT ? OFFSET ?
+    LIMIT $${paramIdx} OFFSET $${paramIdx + 1}
   `, [...params, filter.limit, offset]);
 
   logger.debug({ userId: req.user.id, page: filter.page, count: appointments.length }, 'Appointments listed');
@@ -141,9 +147,9 @@ router.get('/', authenticateToken, (req, res) => {
 });
 
 // GET /appointments/all - Get ALL appointments (for admin/staff view)
-router.get('/all', authenticateToken, (req, res) => {
-  const appointments = queryAll(`
-    SELECT 
+router.get('/all', authenticateToken, async (req, res) => {
+  const appointments = await queryAll(`
+    SELECT
       a.id,
       a.date,
       a.time,
@@ -166,7 +172,7 @@ router.get('/all', authenticateToken, (req, res) => {
 });
 
 // POST /appointments - Create a new appointment
-router.post('/', authenticateToken, (req, res) => {
+router.post('/', authenticateToken, async (req, res) => {
   const v = validate(createAppointmentSchema, req.body);
   if (!v.valid) {
     return sendValidationError(res, v.error);
@@ -174,7 +180,10 @@ router.post('/', authenticateToken, (req, res) => {
 
   const { service_id, date, time, notes } = v.data;
 
-  const service = queryOne('SELECT * FROM services WHERE id = ? AND is_active = 1', [service_id]);
+  const service = await queryOne(
+    'SELECT * FROM services WHERE id = $1 AND is_active = 1',
+    [service_id]
+  );
   if (!service) {
     return sendNotFoundError(res, 'Service not found or unavailable');
   }
@@ -185,39 +194,52 @@ router.post('/', authenticateToken, (req, res) => {
   }
 
   const newEndTime = addMinutes(time, service.duration);
-  const conflict = queryOne(`
+  const conflict = await queryOne(`
     SELECT a.id FROM appointments a
     JOIN services s ON a.service_id = s.id
-    WHERE a.date = ? AND a.status != 'cancelled'
-    AND ? < time(a.time, '+' || s.duration || ' minutes')
-    AND a.time < ?
+    WHERE a.date = $1 AND a.status != 'cancelled'
+    AND $2::time < (a.time::time + (s.duration || ' minutes')::interval)::time
+    AND a.time::time < $3::time
   `, [date, time, newEndTime]);
 
   if (conflict) {
     return sendConflictError(res, 'This time slot is already booked');
   }
 
-  const result = run(`
+  const result = await run(`
     INSERT INTO appointments (user_id, service_id, date, time, status, notes)
-    VALUES (?, ?, ?, ?, 'confirmed', ?)
+    VALUES ($1, $2, $3, $4, 'confirmed', $5)
+    RETURNING id
   `, [req.user.id, service_id, date, time, notes || null]);
 
-  const appointment = queryOne(`
-    SELECT 
+  const appointment = await queryOne(`
+    SELECT
       a.id, a.date, a.time, a.status, a.notes, a.created_at,
       s.name as service_name, s.duration as service_duration, s.price as service_price
     FROM appointments a
     JOIN services s ON a.service_id = s.id
-    WHERE a.id = ?
+    WHERE a.id = $1
   `, [result.lastInsertRowid]);
 
   logger.info({ userId: req.user.id, appointmentId: appointment?.id }, 'Appointment created');
 
   // Send booking confirmation email (non-blocking)
-  const user = queryOne('SELECT name, email FROM users WHERE id = ?', [req.user.id]);
+  const user = await queryOne('SELECT name, email FROM users WHERE id = $1', [req.user.id]);
   if (user) {
     sendBookingConfirmation(user, appointment).catch(err =>
       logger.error({ err }, 'Failed to send confirmation email')
+    );
+  }
+
+  // Notify all admin users about the new booking (non-blocking)
+  const admins = await queryAll(
+    `SELECT id, name, email FROM users
+     WHERE role = $1 AND (email_reminders IS NULL OR email_reminders = 1)`,
+    ['admin']
+  );
+  if (admins && admins.length > 0) {
+    sendAdminBookingNotification(admins, user, appointment).catch(err =>
+      logger.error({ err }, 'Failed to send admin booking notification')
     );
   }
 
@@ -225,7 +247,7 @@ router.post('/', authenticateToken, (req, res) => {
 });
 
 // PUT /appointments/:id/reschedule - Reschedule an appointment
-router.put('/:id/reschedule', authenticateToken, (req, res) => {
+router.put('/:id/reschedule', authenticateToken, async (req, res) => {
   const v = validate(rescheduleSchema, req.body);
   if (!v.valid) {
     return sendValidationError(res, v.error);
@@ -233,8 +255,12 @@ router.put('/:id/reschedule', authenticateToken, (req, res) => {
 
   const { date, time } = v.data;
 
-  const appointment = queryOne('SELECT a.*, s.duration as service_duration FROM appointments a JOIN services s ON a.service_id = s.id WHERE a.id = ? AND a.user_id = ?',
-    [req.params.id, req.user.id]);
+  const appointment = await queryOne(`
+    SELECT a.*, s.duration as service_duration
+    FROM appointments a
+    JOIN services s ON a.service_id = s.id
+    WHERE a.id = $1 AND a.user_id = $2
+  `, [req.params.id, req.user.id]);
 
   if (!appointment) {
     return sendNotFoundError(res, 'Appointment not found');
@@ -250,39 +276,66 @@ router.put('/:id/reschedule', authenticateToken, (req, res) => {
   }
 
   const newEndTime = addMinutes(time, appointment.service_duration);
-  const conflict = queryOne(`
+  const conflict = await queryOne(`
     SELECT a.id FROM appointments a
     JOIN services s ON a.service_id = s.id
-    WHERE a.date = ? AND a.status != 'cancelled' AND a.id != ?
-    AND ? < time(a.time, '+' || s.duration || ' minutes')
-    AND a.time < ?
+    WHERE a.date = $1 AND a.status != 'cancelled' AND a.id != $2
+    AND $3::time < (a.time::time + (s.duration || ' minutes')::interval)::time
+    AND a.time::time < $4::time
   `, [date, req.params.id, time, newEndTime]);
 
   if (conflict) {
     return sendConflictError(res, 'This time slot is already booked');
   }
 
-  run("UPDATE appointments SET date = ?, time = ?, updated_at = datetime('now') WHERE id = ?",
-    [date, time, req.params.id]);
+  await run(
+    `UPDATE appointments SET date = $1, time = $2, updated_at = NOW() WHERE id = $3`,
+    [date, time, req.params.id]
+  );
 
-  const updated = queryOne(`
-    SELECT 
+  const updated = await queryOne(`
+    SELECT
       a.id, a.date, a.time, a.status, a.notes, a.created_at, a.updated_at,
       s.name as service_name, s.duration as service_duration, s.price as service_price
     FROM appointments a
     JOIN services s ON a.service_id = s.id
-    WHERE a.id = ?
+    WHERE a.id = $1
   `, [req.params.id]);
 
   logger.info({ userId: req.user.id, appointmentId: req.params.id }, 'Appointment rescheduled');
+
+  // Send reschedule confirmation email (non-blocking, respects user preferences)
+  const user = await queryOne(
+    'SELECT name, email, email_reminders FROM users WHERE id = $1',
+    [req.user.id]
+  );
+  if (user && (user.email_reminders === 1 || user.email_reminders === null)) {
+    sendRescheduleConfirmation(user, appointment, updated).catch(err =>
+      logger.error({ err }, 'Failed to send reschedule confirmation email')
+    );
+  }
+
+  // Notify all admin users about the reschedule (non-blocking)
+  const admins = await queryAll(
+    `SELECT id, name, email FROM users
+     WHERE role = $1 AND (email_reminders IS NULL OR email_reminders = 1)`,
+    ['admin']
+  );
+  if (admins && admins.length > 0 && user) {
+    sendAdminRescheduleNotification(admins, user, appointment, updated).catch(err =>
+      logger.error({ err }, 'Failed to send admin reschedule notification')
+    );
+  }
 
   res.json({ message: 'Appointment rescheduled successfully', appointment: updated });
 });
 
 // PUT /appointments/:id/cancel - Cancel an appointment
-router.put('/:id/cancel', authenticateToken, (req, res) => {
-  const appointment = queryOne('SELECT * FROM appointments WHERE id = ? AND user_id = ?',
-    [req.params.id, req.user.id]);
+router.put('/:id/cancel', authenticateToken, async (req, res) => {
+  const appointment = await queryOne(
+    'SELECT * FROM appointments WHERE id = $1 AND user_id = $2',
+    [req.params.id, req.user.id]
+  );
 
   if (!appointment) {
     return sendNotFoundError(res, 'Appointment not found');
@@ -292,23 +345,39 @@ router.put('/:id/cancel', authenticateToken, (req, res) => {
     return sendValidationError(res, 'Appointment is already cancelled');
   }
 
-  run("UPDATE appointments SET status = 'cancelled', updated_at = datetime('now') WHERE id = ?", [req.params.id]);
+  await run(
+    `UPDATE appointments SET status = 'cancelled', updated_at = NOW() WHERE id = $1`,
+    [req.params.id]
+  );
 
   logger.info({ userId: req.user.id, appointmentId: req.params.id }, 'Appointment cancelled');
 
   // Send cancellation email (non-blocking)
-  const user = queryOne('SELECT name, email FROM users WHERE id = ?', [req.user.id]);
-  const cancelledApt = queryOne(`
+  const user = await queryOne('SELECT name, email FROM users WHERE id = $1', [req.user.id]);
+  const cancelledApt = await queryOne(`
     SELECT a.id, a.date, a.time, a.notes, a.created_at, a.status,
            s.name as service_name, s.duration as service_duration, s.price as service_price
     FROM appointments a
     JOIN services s ON a.service_id = s.id
-    WHERE a.id = ?
+    WHERE a.id = $1
   `, [req.params.id]);
+
   if (user && cancelledApt) {
     sendCancellationConfirmation(user, cancelledApt).catch(err =>
       logger.error({ err }, 'Failed to send cancellation email')
     );
+
+    // Notify all admin users about the cancellation (non-blocking)
+    const admins = await queryAll(
+      `SELECT id, name, email FROM users
+       WHERE role = $1 AND (email_reminders IS NULL OR email_reminders = 1)`,
+      ['admin']
+    );
+    if (admins && admins.length > 0) {
+      sendAdminCancellationNotification(admins, user, cancelledApt).catch(err =>
+        logger.error({ err }, 'Failed to send admin cancellation notification')
+      );
+    }
   }
 
   res.json({ message: 'Appointment cancelled successfully' });

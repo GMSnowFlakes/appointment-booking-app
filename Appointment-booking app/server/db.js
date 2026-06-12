@@ -1,60 +1,126 @@
-const initSqlJs = require('sql.js');
-const fs = require('fs');
-const path = require('path');
+/**
+ * Database module — PostgreSQL via pg (node-postgres).
+ *
+ * Provides async query helpers that mirror the original sql.js API
+ * so the rest of the app can migrate with minimal changes.
+ *
+ * Environment variables:
+ *   DATABASE_URL  — Postgres connection string (default: local Docker)
+ *   PG_SCHEMA     — Optional schema name (used by tests for isolation)
+ */
 
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'appointments.db');
+const { Pool } = require('pg');
 
-let db = null;
-let SQL = null;
+let pool = null;
 
+/**
+ * Build a connection string from env or use the default for local Docker.
+ */
+function getDatabaseUrl() {
+  return process.env.DATABASE_URL ||
+    'postgres://postgres:postgres@localhost:5432/appointmentbook';
+}
+
+/**
+ * Initialize the database connection pool and run any schema setup.
+ */
 async function initDatabase() {
-  SQL = await initSqlJs();
-  if (fs.existsSync(DB_PATH)) {
-    const buffer = fs.readFileSync(DB_PATH);
-    db = new SQL.Database(buffer);
-  } else {
-    db = new SQL.Database();
+  pool = new Pool({
+    connectionString: getDatabaseUrl(),
+    // Allow the pool to retry connections
+    max: 10,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 5000,
+  });
+
+  // Verify the connection works
+  const client = await pool.connect();
+  try {
+    // Set the schema search path if PG_SCHEMA is provided (used by tests)
+    if (process.env.PG_SCHEMA) {
+      await client.query(`CREATE SCHEMA IF NOT EXISTS ${process.env.PG_SCHEMA}`);
+      await client.query(`SET search_path TO ${process.env.PG_SCHEMA}, public`);
+    }
+    await client.query('SELECT 1');
+  } finally {
+    client.release();
   }
-  db.run('PRAGMA foreign_keys = ON');
-  saveDatabase();
-  return db;
+
+  return pool;
 }
 
-function saveDatabase() {
-  const data = db.export();
-  fs.writeFileSync(DB_PATH, Buffer.from(data));
+/**
+ * Get the pool (for direct access if needed).
+ */
+function getDb() {
+  return pool;
 }
 
-// Convenience: query all rows
-function queryAll(sql, params = []) {
-  const stmt = db.prepare(sql);
-  if (params.length > 0) stmt.bind(params);
-  const rows = [];
-  while (stmt.step()) {
-    rows.push(stmt.getAsObject());
-  }
-  stmt.free();
-  return rows;
+/**
+ * Query all rows from the database.
+ * @param {string} sql - SQL with $1, $2, ... placeholders
+ * @param {any[]} [params] - Query parameters
+ * @returns {Promise<object[]>}
+ */
+async function queryAll(sql, params = []) {
+  if (!pool) throw new Error('Database not initialized. Call initDatabase() first.');
+  const result = await pool.query(sql, params);
+  return result.rows;
 }
 
-// Convenience: query one row
-function queryOne(sql, params = []) {
-  const rows = queryAll(sql, params);
+/**
+ * Query a single row from the database.
+ * @returns {Promise<object|null>}
+ */
+async function queryOne(sql, params = []) {
+  const rows = await queryAll(sql, params);
   return rows.length > 0 ? rows[0] : null;
 }
 
-// Convenience: run a statement (INSERT/UPDATE/DELETE)
-function run(sql, params = []) {
-  db.run(sql, params);
-  // Get last_insert_rowid BEFORE saveDatabase (which resets it in sql.js)
-  const rows = db.exec("SELECT last_insert_rowid() as id");
-  const lastInsertRowid = rows?.[0]?.values?.[0]?.[0] ?? null;
-  saveDatabase();
-  return { lastInsertRowid };
+/**
+ * Run a statement (INSERT / UPDATE / DELETE).
+ *
+ * For INSERT statements with RETURNING id, the result will contain
+ * `lastInsertRowid`. For UPDATE/DELETE, `lastInsertRowid` is null.
+ *
+ * @param {string} sql
+ * @param {any[]} [params]
+ * @returns {Promise<{ lastInsertRowid: number|null, rowCount: number }>}
+ */
+async function run(sql, params = []) {
+  if (!pool) throw new Error('Database not initialized. Call initDatabase() first.');
+  const result = await pool.query(sql, params);
+  return {
+    lastInsertRowid: result.rows?.[0]?.id ?? null,
+    rowCount: result.rowCount,
+  };
 }
 
-function getDb() {
-  return db;
+/**
+ * Close the connection pool (used in tests / shutdown).
+ */
+async function closePool() {
+  if (pool) {
+    await pool.end();
+    pool = null;
+  }
 }
 
-module.exports = { initDatabase, getDb, queryAll, queryOne, run, saveDatabase };
+/**
+ * Drop the current schema (used in test teardown).
+ */
+async function dropSchema(schema) {
+  if (!pool) return;
+  if (!schema) return;
+  await pool.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
+}
+
+module.exports = {
+  initDatabase,
+  getDb,
+  queryAll,
+  queryOne,
+  run,
+  closePool,
+  dropSchema,
+};

@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useBusiness } from '../context/BusinessContext';
+import { ServiceCardSkeleton } from './Skeleton';
+import ScrollReveal from './ScrollReveal';
 
 // Generate UI colors from a base hex color
 function hexToRgba(hex, alpha) {
@@ -34,7 +36,7 @@ function ServiceCard({ service, index, categoryColor }) {
 
   return (
     <div
-      className={`group bg-white rounded-2xl border border-border overflow-hidden opacity-0 hover:shadow-lg hover:border-primary/20 transition-all duration-300 animate-fade-in animate-stagger-${Math.min(index % 6 + 1, 6)}`}
+      className={`group bg-white rounded-2xl border border-border overflow-hidden hover:shadow-lg hover:border-primary/20 transition-all duration-300 animate-fade-in animate-stagger-${Math.min(index % 6 + 1, 6)}`}
     >
       {/* Dynamic category color bar */}
       <div className="h-1.5 w-full" style={{ backgroundColor: catColor }} />
@@ -162,10 +164,20 @@ export default function ServiceList() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[70vh]">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-          <p className="text-text-secondary text-sm">Loading services...</p>
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        {/* Skeleton header */}
+        <div className="text-center mb-10">
+          <div className="w-24 h-3 mx-auto mb-3 rounded-full bg-border/60 animate-pulse" />
+          <div className="w-64 h-10 mx-auto rounded-xl bg-border/60 animate-pulse" />
+          <div className="w-80 h-4 mx-auto mt-3 rounded-lg bg-border/60 animate-pulse" />
+        </div>
+        {/* Skeleton search bar */}
+        <div className="w-full h-12 mb-8 rounded-xl bg-border/60 animate-pulse" />
+        {/* Skeleton grid */}
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <ServiceCardSkeleton key={i} />
+          ))}
         </div>
       </div>
     );
@@ -247,30 +259,49 @@ export default function ServiceList() {
       {Object.entries(grouped).map(([category, categoryServices]) => {
         const catColor = categoryColors[category] || '#e11d48';
         return (
-          <section key={category} className="mb-12">
-            <div className="flex items-center gap-4 mb-6">
-              <span className="w-3 h-3 rounded-full" style={{ backgroundColor: catColor }} />
-              <div>
-                <h2 className="text-xl font-serif font-semibold text-text">{category}</h2>
-                <p className="text-xs text-text-muted">{categoryServices.length} service{categoryServices.length > 1 ? 's' : ''}</p>
+          <ScrollReveal key={category} animation="animate-fade-in">
+            <section className="mb-12">
+              <div className="flex items-center gap-4 mb-6">
+                <span className="w-3 h-3 rounded-full" style={{ backgroundColor: catColor }} />
+                <div>
+                  <h2 className="text-xl font-serif font-semibold text-text">{category}</h2>
+                  <p className="text-xs text-text-muted">{categoryServices.length} service{categoryServices.length > 1 ? 's' : ''}</p>
+                </div>
+                <div className="h-px flex-1 bg-border/70" />
               </div>
-              <div className="h-px flex-1 bg-border/70" />
-            </div>
 
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {categoryServices.map((service, i) => (
-                <ServiceCard key={service.id} service={service} index={i} categoryColor={catColor} />
-              ))}
-            </div>
-          </section>
+              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                {categoryServices.map((service, i) => (
+                  <ServiceCard key={service.id} service={service} index={i} categoryColor={catColor} />
+                ))}
+              </div>
+            </section>
+          </ScrollReveal>
         );
       })}
 
       {services.length === 0 && (
-        <div className="text-center py-16">
-          <div className="w-16 h-16 mx-auto mb-4 bg-primary-bg rounded-full flex items-center justify-center text-2xl">📭</div>
-          <h3 className="text-lg font-semibold text-text mb-1">No Services Available</h3>
-          <p className="text-text-secondary text-sm">Please check back later or try a different search.</p>
+        <div className="text-center py-20 animate-fade-in">
+          <div className="relative w-20 h-20 mx-auto mb-5">
+            <div className="absolute inset-0 bg-primary-bg rounded-full animate-pulse-soft" />
+            <div className="relative w-full h-full flex items-center justify-center text-3xl">
+              {searchQuery || selectedCategory ? '🔍' : '📭'}
+            </div>
+          </div>
+          <h3 className="text-xl font-serif font-semibold text-text mb-2">
+            {searchQuery || selectedCategory ? 'No Matching Services' : 'No Services Available'}
+          </h3>
+          <p className="text-text-secondary text-sm max-w-xs mx-auto leading-relaxed">
+            {searchQuery || selectedCategory
+              ? 'Try adjusting your search or filter to find what you\'re looking for.'
+              : 'Services will appear here once they are added by the business owner.'}
+          </p>
+          {(searchQuery || selectedCategory) && (
+            <button onClick={() => { setSearchQuery(''); setSelectedCategory(''); }}
+              className="mt-6 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary-dark transition-all shadow-sm">
+              Clear Filters
+            </button>
+          )}
         </div>
       )}
     </div>

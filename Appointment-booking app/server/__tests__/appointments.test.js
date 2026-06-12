@@ -1,33 +1,29 @@
 const request = require('supertest');
-const path = require('path');
-const fs = require('fs');
-const os = require('os');
-const jwt = require('jsonwebtoken');
+const { makeTestSchema, seedTestData, authHeader } = require('./helpers');
 
-const testDbPath = path.join(os.tmpdir(), `appointment-test-appts-${Date.now()}.db`);
-process.env.DB_PATH = testDbPath;
+const testSchema = makeTestSchema();
+process.env.PG_SCHEMA = testSchema;
 process.env.JWT_SECRET = 'test-secret-key';
 
 delete require.cache[require.resolve('../db')];
 const { app, initializeDb } = require('../index');
-const { seedTestData, authHeader } = require('./helpers');
+const { dropSchema, closePool } = require('../db');
 
-let customerToken, customerId;
+let customerToken;
 
 beforeAll(async () => {
   await initializeDb();
-  seedTestData();
+  await seedTestData();
 
-  // Log in as customer to get a token and id
   const loginRes = await request(app)
     .post('/api/auth/login')
     .send({ email: 'customer@test.com', password: 'password123' });
   customerToken = loginRes.body.token;
-  customerId = loginRes.body.user.id;
 });
 
-afterAll(() => {
-  try { fs.unlinkSync(testDbPath); } catch (e) { /* ignore */ }
+afterAll(async () => {
+  await dropSchema(testSchema);
+  await closePool();
 });
 
 describe('Appointments API', () => {
@@ -50,7 +46,6 @@ describe('Appointments API', () => {
       const res = await request(app)
         .get('/api/appointments/availability?start=2026-07-15&end=2026-07-15');
 
-      // 10:00 + 30 min service = occupies 10:00 and 10:30 slots
       expect(res.body.availability).toHaveProperty('2026-07-15');
       expect(res.body.availability['2026-07-15']).toContain('10:00');
     });
@@ -159,9 +154,9 @@ describe('Appointments API', () => {
         .post('/api/appointments')
         .set(authHeader(customerToken))
         .send({
-          service_id: 1, // 30 min duration
+          service_id: 1,
           date: '2026-07-15',
-          time: '10:00', // already booked
+          time: '10:00',
         });
 
       expect(res.status).toBe(409);
@@ -187,14 +182,13 @@ describe('Appointments API', () => {
     });
 
     it('should reject cancelling another user appointment', async () => {
-      // Login as Jane (user 3) and try to cancel user 2's appointment (id 4 which is cancelled already)
       const loginJane = await request(app)
         .post('/api/auth/login')
         .send({ email: 'jane@test.com', password: 'password123' });
       const janeToken = loginJane.body.token;
 
       const res = await request(app)
-        .put('/api/appointments/3/cancel') // Jane's own appointment
+        .put('/api/appointments/3/cancel')
         .set(authHeader(janeToken));
 
       expect(res.status).toBe(200);
@@ -219,8 +213,6 @@ describe('Appointments API', () => {
         .set(authHeader(customerToken))
         .send({ date: '2026-07-28', time: '15:00' });
 
-      // The reschedule endpoint doesn't check for same slot on server side for same user
-      // but it'll work since it's the same slot (just an update)
       expect(res.status).toBe(200);
     });
 

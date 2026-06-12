@@ -174,20 +174,52 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
   50% { transform: translateY(-4px); }
 }
 
+@keyframes pageIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pageOut {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-8px); }
+}
+
+@keyframes revealUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulseSoft {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
 .animate-fade-in {
-  animation: fadeIn 0.4s ease-out;
+  animation: fadeIn 0.4s ease-out both;
 }
 
 .animate-slide-up {
-  animation: slideUp 0.5s ease-out;
+  animation: slideUp 0.5s ease-out both;
 }
 
 .animate-scale-in {
-  animation: scaleIn 0.25s ease-out;
+  animation: scaleIn 0.25s ease-out both;
 }
 
 .animate-slide-down {
-  animation: slideDown 0.3s ease-out;
+  animation: slideDown 0.3s ease-out both;
+}
+
+.animate-page-in {
+  animation: pageIn 0.25s ease-out both;
+}
+
+.animate-page-out {
+  animation: pageOut 0.15s ease-in both;
+}
+
+.animate-reveal {
+  animation: revealUp 0.5s ease-out both;
 }
 
 /* Staggered animation delays */
@@ -197,6 +229,13 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
 .animate-stagger-4 { animation-delay: 0.2s; animation-fill-mode: both; }
 .animate-stagger-5 { animation-delay: 0.25s; animation-fill-mode: both; }
 .animate-stagger-6 { animation-delay: 0.3s; animation-fill-mode: both; }
+.animate-stagger-7 { animation-delay: 0.35s; animation-fill-mode: both; }
+.animate-stagger-8 { animation-delay: 0.4s; animation-fill-mode: both; }
+
+/* Shimmer loading */
+.animate-pulse-soft {
+  animation: pulseSoft 2s ease-in-out infinite;
+}
 
 /* Custom focus ring */
 input:focus,

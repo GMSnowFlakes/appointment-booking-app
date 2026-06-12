@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const express = require('express');
 const cors = require('cors');
-const { initDatabase, getDb, queryOne, run } = require('./db');
+const { initDatabase, queryOne, run } = require('./db');
 const { createCorsOptions } = require('./cors');
 const { runMigrations } = require('./migrate');
 const { sendInternalError } = require('./errors');
@@ -16,12 +16,14 @@ const {
   adminLimiter,
   healthLimiter,
 } = require('./rate-limit');
+const { startScheduler } = require('./scheduler');
 
 const authRoutes = require('./routes/auth');
 const servicesRoutes = require('./routes/services');
 const appointmentsRoutes = require('./routes/appointments');
 const adminRoutes = require('./routes/admin');
 const settingsRoutes = require('./routes/settings');
+const preferencesRoutes = require('./routes/preferences');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -66,8 +68,11 @@ app.use('/api/services', servicesRoutes);
 app.use('/api/appointments', appointmentsRoutes);
 app.use('/api/admin', adminRoutes);
 
-// Public settings (no rate limit, lightweight)
+// Public settings
 app.use('/api/settings', settingsRoutes);
+
+// User notification preferences
+app.use('/api/user/preferences', preferencesRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -78,20 +83,24 @@ app.get('/api/health', (req, res) => {
 async function initializeDb() {
   await initDatabase();
   await runMigrations();
-  const db = getDb();
-  const result = db.exec("SELECT COUNT(*) as count FROM services");
-  const serviceCount = result[0]?.values[0]?.[0] ?? 0;
+
+  // Check if services exist, seed if empty
+  const row = await queryOne('SELECT COUNT(*)::int as count FROM services');
+  const serviceCount = parseInt(row?.count ?? 0);
   if (serviceCount === 0) {
-    seedData();
+    await seedData();
   }
 }
 
-function seedData() {
+async function seedData() {
   // Create default business settings if none exist
-  const existingSettings = queryOne('SELECT id FROM business_settings LIMIT 1');
-  if (!existingSettings) {
-    run('INSERT INTO business_settings (business_name, business_type) VALUES (?, ?)',
-      ['My Business', 'salon']);
+  const existing = await queryOne('SELECT id FROM business_settings LIMIT 1');
+  if (!existing) {
+    await run(
+      `INSERT INTO business_settings (business_name, business_type)
+       VALUES ($1, $2)`,
+      ['My Business', 'salon']
+    );
     logger.info('Seeded default business settings');
   }
 
@@ -108,8 +117,11 @@ function seedData() {
   ];
 
   for (const s of services) {
-    run('INSERT INTO services (name, description, duration, price, category) VALUES (?, ?, ?, ?, ?)',
-      [s.name, s.description, s.duration, s.price, s.category]);
+    await run(
+      `INSERT INTO services (name, description, duration, price, category)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [s.name, s.description, s.duration, s.price, s.category]
+    );
   }
   logger.info(`Seeded ${services.length} services`);
 }
@@ -126,6 +138,13 @@ if (require.main === module) {
     app.listen(PORT, () => {
       console.log(`Server running on http://localhost:${PORT}`);
       console.log(`API: http://localhost:${PORT}/api`);
+
+      // Start the reminder email scheduler
+      if (process.env.DISABLE_SCHEDULER !== 'true') {
+        startScheduler();
+      } else {
+        console.log('Scheduler disabled via DISABLE_SCHEDULER env var');
+      }
     });
   }).catch(err => {
     console.error('Failed to initialize database:', err);

@@ -1,17 +1,21 @@
 /**
- * Migration 002: Add role column to users table
- *
- * This handles existing databases that were created before the role column
- * was added to the schema. Uses try/catch since ALTER TABLE ADD COLUMN
- * will fail if the column already exists.
+ * Migration 002: Add role column to users.
+ * (In Postgres, the role column was already included in the initial schema
+ *  for convenience, but this migration ensures backward compatibility
+ *  if the column was added later on an existing database.)
  */
-module.exports = function up({ run, saveDatabase, logger }) {
-  try {
-    run("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'customer'");
-    saveDatabase();
-    logger.info('Migration 002: Added role column to users table');
-  } catch (e) {
-    // Column already exists — ignore
-    logger.debug('Migration 002: role column already exists, skipping');
+module.exports.up = async ({ db, queryAll, queryOne, run, logger }) => {
+  // Check if column already exists (it will in fresh installs, but not in upgrades)
+  const exists = await db().query(`
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_name = 'users' AND column_name = 'role'
+  `);
+
+  if (exists.rows.length === 0) {
+    await db().query(`ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'customer'`);
+    logger.info('002_add_role_column: added role column to users');
+  } else {
+    logger.info('002_add_role_column: role column already exists, skipping');
   }
 };

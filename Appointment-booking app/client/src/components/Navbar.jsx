@@ -39,6 +39,15 @@ function ListIcon({ className }) {
   );
 }
 
+function BellIcon({ className }) {
+  return (
+    <svg className={className} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M10 2.5a6 6 0 00-6 6v3l-1.5 2.5a.5.5 0 00.5.5h14a.5.5 0 00.5-.5L16 11.5v-3a6 6 0 00-6-6z" strokeLinecap="round" />
+      <path d="M8 15a2 2 0 004 0" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function SettingsIcon({ className }) {
   return (
     <svg className={className} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -74,8 +83,11 @@ export default function Navbar({ currentPage, onNavigate }) {
 
   const tabs = [
     { id: 'services', label: 'Services', icon: ListIcon },
-    { id: 'book', label: 'Book Appointment', icon: BookIcon },
-    { id: 'appointments', label: 'My Appointments', icon: CalendarIcon },
+    ...(user ? [
+      { id: 'book', label: 'Book Appointment', icon: BookIcon },
+      { id: 'appointments', label: 'My Appointments', icon: CalendarIcon },
+      { id: 'notifications', label: 'Notifications', icon: BellIcon },
+    ] : []),
     ...(user?.role === 'admin' ? [{ id: 'admin', label: 'Admin', icon: SettingsIcon }] : []),
   ];
 

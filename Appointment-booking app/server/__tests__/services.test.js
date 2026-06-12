@@ -1,23 +1,22 @@
 const request = require('supertest');
-const path = require('path');
-const fs = require('fs');
-const os = require('os');
+const { makeTestSchema, seedTestData } = require('./helpers');
 
-const testDbPath = path.join(os.tmpdir(), `appointment-test-services-${Date.now()}.db`);
-process.env.DB_PATH = testDbPath;
+const testSchema = makeTestSchema();
+process.env.PG_SCHEMA = testSchema;
 process.env.JWT_SECRET = 'test-secret-key';
 
 delete require.cache[require.resolve('../db')];
 const { app, initializeDb } = require('../index');
-const { seedTestData } = require('./helpers');
+const { dropSchema, closePool } = require('../db');
 
 beforeAll(async () => {
   await initializeDb();
-  seedTestData();
+  await seedTestData();
 });
 
-afterAll(() => {
-  try { fs.unlinkSync(testDbPath); } catch (e) { /* ignore */ }
+afterAll(async () => {
+  await dropSchema(testSchema);
+  await closePool();
 });
 
 describe('Services API', () => {
@@ -63,12 +62,11 @@ describe('Services API', () => {
     });
 
     it('should filter by category', async () => {
-      // "Grooming" only has 1 service (from default seed data)
-      const res = await request(app).get('/api/services?category=Grooming');
+      const res = await request(app).get('/api/services?category=Wellness');
 
       expect(res.status).toBe(200);
       expect(res.body.services.length).toBe(1);
-      expect(res.body.services[0].category).toBe('Grooming');
+      expect(res.body.services[0].category).toBe('Wellness');
     });
 
     it('should return empty array for non-matching search', async () => {
