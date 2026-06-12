@@ -1,0 +1,67 @@
+{
+  "name": "AppointmentBook",
+  "short_name": "ApptBook",
+  "description": "Premium salon and spa appointment booking — manage services, book appointments, and run your business.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait-primary",
+  "theme_color": "#7c3aed",
+  "background_color": "#fcf7f2",
+  "categories": ["business", "lifestyle"],
+  "lang": "en-US",
+  "dir": "ltr",
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshot-wide.png",
+      "sizes": "3840x1920",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Browse and book premium salon services"
+    },
+    {
+      "src": "/screenshot-narrow.png",
+      "sizes": "2160x3840",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Browse services on mobile — Book with ease"
+    },
+    {
+      "src": "/screenshot-admin.png",
+      "sizes": "2880x1800",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Admin dashboard — manage services and appointments"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Book Appointment",
+      "short_name": "Book",
+      "description": "Start a new booking",
+      "url": "/services"
+    },
+    {
+      "name": "My Appointments",
+      "short_name": "My Bookings",
+      "description": "View your upcoming appointments",
+      "url": "/appointments"
+    }
+  ]
+}

@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+# Cancel in-progress runs for the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path:
+            - Appointment-booking app/server/package-lock.json
+            - Appointment-booking app/client/package-lock.json
+
+      - name: Install server dependencies
+        run: npm ci
+        working-directory: Appointment-booking app/server
+
+      - name: Install client dependencies
+        run: npm ci
+        working-directory: Appointment-booking app/client
+
+      - name: Run server unit tests
+        run: npm test
+        working-directory: Appointment-booking app/server
+
+      - name: Run client unit tests
+        run: npm test
+        working-directory: Appointment-booking app/client
+
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium
+        working-directory: Appointment-booking app/client
+
+      - name: Run E2E Playwright tests
+        run: npm run e2e
+        working-directory: Appointment-booking app/client
+        env:
+          DISABLE_RATE_LIMIT: 'true'
+
+      - name: Upload E2E test artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results
+          path: Appointment-booking app/client/test-results/
+          if-no-files-found: ignore
+          retention-days: 7
