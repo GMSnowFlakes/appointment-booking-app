@@ -421,4 +421,32 @@ router.post('/customers', csvUpload.single('file'), async (req, res) => {
   }
 });
 
+// ─── GET /import/appointments/template ───────────────
+
+router.get('/appointments/template', async (req, res) => {
+  const csv = 'customer_email,customer_name,service_name,date,time,status,notes\r\n' +
+    'john@example.com,John Doe,Haircut & Styling,2026-07-15,10:00,confirmed,First appointment\r\n' +
+    'jane@example.com,Jane Smith,Massage Therapy,2026-07-20,14:00,confirmed,Deep tissue please\r\n';
+
+  res.set({
+    'Content-Type': 'text/csv; charset=utf-8',
+    'Content-Disposition': 'attachment; filename="appointments_import_template.csv"',
+  });
+  res.send(csv);
+});
+
+// ─── GET /import/customers/template ─────────────────
+
+router.get('/customers/template', async (req, res) => {
+  const csv = 'name,email,password,role\r\n' +
+    'John Doe,john@example.com,welcome123,customer\r\n' +
+    'Jane Smith,jane@example.com,secure456,customer\r\n';
+
+  res.set({
+    'Content-Type': 'text/csv; charset=utf-8',
+    'Content-Disposition': 'attachment; filename="customers_import_template.csv"',
+  });
+  res.send(csv);
+});
+
 module.exports = router;

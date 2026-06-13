@@ -217,6 +217,166 @@ function ServiceFormModal({ open, service, onClose, onSaved }) {
   );
 }
 
+// ─── CSV Import Modal ───────────────────────────
+
+function ImportCsvModal({ open, onClose, endpoint, templateEndpoint, title, description, onImported }) {
+  const { fetchWithAuth } = useAuth();
+  const toast = useToast();
+  const [file, setFile] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (open) { setFile(null); setResult(null); setError(''); }
+  }, [open]);
+
+  function handleFileChange(e) {
+    const f = e.target.files[0];
+    if (f) setFile(f);
+  }
+
+  async function handleImport() {
+    if (!file) return;
+    setImporting(true);
+    setError('');
+    setResult(null);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetchWithAuth(endpoint, { method: 'POST', body: fd });
+      const data = await res.json();
+      if (res.ok) {
+        setResult(data.results);
+        toast.success(data.message);
+        onImported?.();
+      } else {
+        setError(data.error || 'Import failed');
+        toast.error(data.error || 'Import failed');
+      }
+    } catch (err) {
+      setError(err.message);
+      toast.error(err.message);
+    }
+    setImporting(false);
+  }
+
+  async function downloadTemplate() {
+    try {
+      const res = await fetchWithAuth(templateEndpoint);
+      if (!res.ok) { toast.error('Failed to download template'); return; }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = '';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.error(err.message);
+    }
+  }
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-xl border border-border w-full max-w-lg animate-scale-in">
+        <div className="px-6 py-5 border-b border-border flex items-center justify-between bg-surface-warm">
+          <h2 className="text-lg font-serif font-bold text-text">{title || 'Import CSV'}</h2>
+          <button onClick={onClose} className="w-8 h-8 rounded-xl text-text-muted hover:text-text hover:bg-surface-alt transition-all flex items-center justify-center">
+            <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4l8 8M12 4l-8 8" strokeLinecap="round" /></svg>
+          </button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          {description && <p className="text-sm text-text-secondary">{description}</p>}
+
+          {!result ? (
+            <>
+              {/* File upload area */}
+              <label className="block">
+                <div className="border-2 border-dashed border-border rounded-xl p-8 text-center cursor-pointer hover:border-primary/50 hover:bg-primary-bg/30 transition-all">
+                  {file ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <svg className="w-8 h-8 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="12" y1="18" x2="12" y2="12" /><line x1="9" y1="15" x2="12" y2="12" /><line x1="15" y1="15" x2="12" y2="12" /></svg>
+                      <p className="text-sm font-medium text-text">{file.name}</p>
+                      <p className="text-xs text-text-muted">{(file.size / 1024).toFixed(1)} KB — Click to change</p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-2">
+                      <svg className="w-10 h-10 text-text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
+                      <p className="text-sm font-medium text-text">Upload a CSV file</p>
+                      <p className="text-xs text-text-muted">Click to browse or drag & drop</p>
+                    </div>
+                  )}
+                  <input type="file" accept=".csv,.tsv" onChange={handleFileChange} className="hidden" />
+                </div>
+              </label>
+
+              {/* Template download */}
+              {templateEndpoint && (
+                <button onClick={downloadTemplate}
+                  className="w-full text-center text-xs text-primary hover:text-primary-dark font-medium underline underline-offset-2 transition-colors">
+                  Download sample CSV template
+                </button>
+              )}
+
+              {/* Error */}
+              {error && (
+                <div className="p-3 bg-error-bg border border-red-200 rounded-xl text-sm text-error flex items-start gap-2.5">
+                  <span className="mt-0.5">⚠️</span>
+                  <span>{error}</span>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex gap-3">
+                <button onClick={onClose}
+                  className="flex-1 py-2.5 rounded-xl border border-border text-text-secondary text-sm font-medium hover:bg-surface-alt transition-all">Cancel</button>
+                <button onClick={handleImport} disabled={!file || importing}
+                  className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary-dark transition-all disabled:opacity-50 shadow-sm flex items-center justify-center gap-2">
+                  {importing ? (
+                    <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Importing...</>
+                  ) : 'Import CSV'}
+                </button>
+              </div>
+            </>
+          ) : (
+            /* Results view */
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 p-4 bg-success-bg border border-green-200 rounded-xl">
+                <span className="text-2xl">✅</span>
+                <div>
+                  <p className="font-medium text-success text-sm">{result.success} created successfully</p>
+                  {result.failed > 0 && <p className="text-xs text-text-muted">{result.failed} failed</p>}
+                </div>
+              </div>
+
+              {result.errors?.length > 0 && (
+                <div className="max-h-48 overflow-y-auto space-y-1">
+                  <p className="text-xs font-semibold text-error uppercase tracking-wider">Errors ({result.errors.length})</p>
+                  {result.errors.map((err, i) => (
+                    <p key={i} className="text-xs text-text-secondary bg-error-bg/50 p-2 rounded-lg">{err}</p>
+                  ))}
+                </div>
+              )}
+
+              <button onClick={onClose}
+                className="w-full py-2.5 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary-dark transition-all shadow-sm">Done</button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── CSV Download Helper ───────────────────────
 
 function downloadCsv(fetchWithAuth, endpoint, filename) {
@@ -886,6 +1046,7 @@ function AppointmentsTab() {
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 0 });
+  const [importOpen, setImportOpen] = useState(false);
 
   const exportAppointments = downloadCsv(fetchWithAuth, '/api/export/appointments', `appointments_${new Date().toISOString().slice(0, 10)}.csv`);
 
@@ -935,6 +1096,11 @@ function AppointmentsTab() {
           <p className="text-sm text-text-secondary">{pagination.total} total{pagination.totalPages > 1 ? ` (page ${pagination.page} of ${pagination.totalPages})` : ''}</p>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={() => setImportOpen(true)}
+            className="px-3 py-2 border border-dashed border-primary/40 text-primary rounded-xl text-sm font-medium hover:bg-primary-bg transition-all flex items-center gap-1.5">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
+            Import CSV
+          </button>
           <button onClick={exportAppointments}
             className="px-3 py-2 border border-border text-text-secondary rounded-xl text-sm font-medium hover:bg-surface-alt hover:text-text transition-all flex items-center gap-1.5">
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
@@ -1015,6 +1181,16 @@ function AppointmentsTab() {
           )}
         </>
       )}
+
+      <ImportCsvModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        endpoint="/api/import/appointments"
+        templateEndpoint="/api/import/appointments/template"
+        title="Import Appointments"
+        description="Upload a CSV with customer_email, service_name, date, and time. Existing customers are matched by email; new ones are auto-created."
+        onImported={() => fetchAppointments()}
+      />
     </div>
   );
 }
@@ -1029,6 +1205,7 @@ function UsersTab() {
   const [error, setError] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, user: null });
   const [roleChange, setRoleChange] = useState({ open: false, user: null, newRole: '' });
+  const [importOpen, setImportOpen] = useState(false);
 
   useEffect(() => { fetchUsers(); }, []);
 
@@ -1075,6 +1252,11 @@ function UsersTab() {
           <h2 className="text-xl font-serif font-bold text-text">User Management</h2>
           <p className="text-sm text-text-secondary">{users.length} total users</p>
         </div>
+        <button onClick={() => setImportOpen(true)}
+          className="px-3 py-2 border border-dashed border-primary/40 text-primary rounded-xl text-sm font-medium hover:bg-primary-bg transition-all flex items-center gap-1.5">
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
+          Import Customers
+        </button>
       </div>
       {users.length === 0 ? (
         <EmptyBlock icon={<Icon name="users" className="w-6 h-6" />} title="No Users" message="No users registered yet." />
@@ -1142,6 +1324,16 @@ function UsersTab() {
         message={deleteConfirm.user ? `Permanently delete "${deleteConfirm.user.name}" and all their appointments?` : ''}
         confirmLabel="Yes, Delete" cancelLabel="Cancel" variant="danger"
         onConfirm={handleDelete} onCancel={() => setDeleteConfirm({ open: false, user: null })} />
+
+      <ImportCsvModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        endpoint="/api/import/customers"
+        templateEndpoint="/api/import/customers/template"
+        title="Import Customers"
+        description="Upload a CSV with name, email, and optional password/role columns. Duplicate emails are skipped."
+        onImported={() => fetchUsers()}
+      />
     </div>
   );
 }
