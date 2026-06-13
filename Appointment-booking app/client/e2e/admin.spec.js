@@ -45,19 +45,14 @@ test.describe('Admin Dashboard', () => {
       throw new Error(`Admin register failed: ${regData.error}`);
     }
 
-    // Promote to admin via seed-admin.cjs with the dev database path
-    // This script finds existing user by email and updates role to 'admin'
-    const serverDir = path.resolve(__dirname, '../../server');
-    const devDbPath = path.join(serverDir, 'appointments.db');
+    // Promote to admin via seed-admin.cjs (PostgreSQL-compatible)
     const seedScript = path.resolve(__dirname, 'seed-admin.cjs');
-    const serverNodeModules = path.join(serverDir, 'node_modules');
 
     const seedOutput = execSync(
-      `node "${seedScript}" "${devDbPath}" "${adminUser.email}" "${adminUser.password}" "${adminUser.name}"`,
+      `node "${seedScript}" "${adminUser.email}" "${adminUser.password}" "${adminUser.name}"`,
       {
         encoding: 'utf-8',
         timeout: 15000,
-        env: { ...process.env, NODE_PATH: serverNodeModules },
       }
     );
 

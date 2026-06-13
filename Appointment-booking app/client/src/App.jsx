@@ -11,6 +11,9 @@ import BookingForm from './components/BookingForm';
 import AppointmentList from './components/AppointmentList';
 import AdminDashboard from './components/AdminDashboard';
 import NotificationPreferences from './components/NotificationPreferences';
+import ProfilePage from './components/ProfilePage';
+import CheckoutForm from './components/CheckoutForm';
+import WaitingListManager from './components/WaitingListManager';
 
 // ─── Footer ─────────────────────────────────────
 
@@ -93,6 +96,9 @@ function AppContent() {
       case 'appointments': return <AppointmentList key={refreshAppointments} />;
       case 'notifications': return <NotificationPreferences />;
       case 'admin': return <AdminDashboard />;
+      case 'profile': return <ProfilePage />;
+      case 'waiting-list': return <WaitingListManager key={refreshAppointments} />;
+      case 'checkout': return <CheckoutForm appointment={/* will be set by BookingForm */} onSuccess={() => setPage('appointments')} onCancel={() => setPage('book')} />;
       case 'services':
       default: return <ServiceList />;
     }

@@ -9,16 +9,13 @@ const serverDir = path.resolve(__dirname, '../../server');
 const PORT = process.env.E2E_PORT || 3001;
 const CLIENT_PORT = 5173;
 
-// Unique test DB to isolate runs
-const testDbPath = path.resolve(
-  __dirname,
-  `../../server/e2e-test-${Date.now()}.db`
-);
+// Unique Postgres schema per test run for isolation (cleans up after itself)
+const testSchema = `e2e_${Date.now()}`;
+process.env.PG_SCHEMA = testSchema;
 
-// Write the DB path to a temp file so test specs can access it
+// Write test metadata to a temp file so test specs can access it
 const dbInfoPath = path.resolve(__dirname, '.e2e-db-path.json');
 fs.writeFileSync(dbInfoPath, JSON.stringify({
-  dbPath: testDbPath,
   apiUrl: `http://localhost:${PORT}`,
   clientUrl: `http://localhost:${CLIENT_PORT}`,
   adminEmail: `admin-${Date.now()}@e2e-test.com`,
@@ -55,7 +52,8 @@ export default defineConfig({
       env: {
         ...process.env,
         PORT: String(PORT),
-        DB_PATH: testDbPath,
+        PG_SCHEMA: testSchema,
+        DATABASE_URL: process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/appointmentbook',
         JWT_SECRET: 'e2e-test-jwt-secret',
         RESEND_API_KEY: '',
         DISABLE_RATE_LIMIT: 'true',

@@ -25,6 +25,32 @@ const adminRoutes = require('./routes/admin');
 const settingsRoutes = require('./routes/settings');
 const preferencesRoutes = require('./routes/preferences');
 
+// New feature routes
+const paymentsRoutes = require('./routes/payments');
+const couponsRoutes = require('./routes/coupons');
+const staffRoutes = require('./routes/staff');
+const waitingListRoutes = require('./routes/waiting-list');
+const videoRoutes = require('./routes/video');
+const calendarSyncRoutes = require('./routes/calendar-sync');
+const profileRoutes = require('./routes/profile');
+const tenantsRoutes = require('./routes/tenants');
+const { router: smsRoutes } = require('./routes/sms');
+const analyticsRoutes = require('./routes/analytics');
+const packagesRoutes = require('./routes/packages');
+const { router: loyaltyRoutes } = require('./routes/loyalty');
+const giftCardsRoutes = require('./routes/gift-cards');
+const { router: referralsRoutes } = require('./routes/referrals');
+const inventoryRoutes = require('./routes/inventory');
+const { router: webhooksRoutes } = require('./routes/webhooks');
+const widgetRoutes = require('./routes/widget');
+const publicBookingRoutes = require('./routes/public-booking');
+const icalRoutes = require('./routes/ical');
+const financeRoutes = require('./routes/finance');
+const staffExtendedRoutes = require('./routes/staff-extended');
+const customerManagementRoutes = require('./routes/customer-management');
+const notificationsExtendedRoutes = require('./routes/notifications-extended');
+const { router: adminExtendedRoutes } = require('./routes/admin-extended');
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -36,6 +62,10 @@ if (!fs.existsSync(uploadsDir)) {
 
 // Middleware
 app.use(cors(createCorsOptions()));
+
+// Stripe webhook needs raw body BEFORE express.json() consumes it
+app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
+
 app.use(express.json());
 
 // Serve uploaded files
@@ -74,6 +104,80 @@ app.use('/api/settings', settingsRoutes);
 // User notification preferences
 app.use('/api/user/preferences', preferencesRoutes);
 
+// Payment processing (Stripe + PayPal)
+// Note: /api/payments/webhook is handled by express.raw() middleware above
+app.use('/api/payments', paymentsRoutes);
+
+// Coupons / discount codes
+app.use('/api/coupons', couponsRoutes);
+
+// Staff management
+app.use('/api/staff', staffRoutes);
+
+// Waiting list
+app.use('/api/waiting-list', waitingListRoutes);
+
+// Video conferencing (Zoom / Google Meet)
+app.use('/api/video', videoRoutes);
+
+// Google Calendar sync
+app.use('/api/calendar', calendarSyncRoutes);
+
+// SMS notifications
+app.use('/api/sms', smsRoutes);
+app.use('/api/user/sms-preferences', smsRoutes);
+
+// Customer profile & booking history
+app.use('/api/profile', profileRoutes);
+
+// Analytics dashboard
+app.use('/api/analytics', analyticsRoutes);
+
+// Packages & bundle deals
+app.use('/api/packages', packagesRoutes);
+
+// Loyalty points & rewards
+app.use('/api/loyalty', loyaltyRoutes);
+
+// Gift cards
+app.use('/api/gift-cards', giftCardsRoutes);
+
+// Referral system
+app.use('/api/referrals', referralsRoutes);
+
+// Inventory / products
+app.use('/api/inventory', inventoryRoutes);
+
+// Outgoing webhooks
+app.use('/api/webhooks', webhooksRoutes);
+
+// Embeddable booking widget
+app.use('/api/widget', widgetRoutes);
+
+// Public booking pages (embeddable widget + full booking flow)
+app.use('/', publicBookingRoutes);
+
+// iCal feed (public token access + user token management)
+app.use('/api/ical', icalRoutes);
+
+// Finance enhancements (tax, dynamic pricing, credits, tips)
+app.use('/api/finance', financeRoutes);
+
+// Staff extended management (leave, shifts, clock, portfolio)
+app.use('/api/staff-extended', staffExtendedRoutes);
+
+// Customer management (blacklist, rules, groups, walk-ins, campaigns)
+app.use('/api/customer', customerManagementRoutes);
+
+// Extended notifications (templates, push, in-app messaging, i18n, GDPR)
+app.use('/api/notifications', notificationsExtendedRoutes);
+
+// Admin extended (security, audit, API keys, roles, integrations)
+app.use('/api/admin-extended', adminExtendedRoutes);
+
+// Multi-tenancy
+app.use('/api/tenants', tenantsRoutes);
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -89,6 +193,14 @@ async function initializeDb() {
   const serviceCount = parseInt(row?.count ?? 0);
   if (serviceCount === 0) {
     await seedData();
+  }
+
+  // Seed default integration settings (safe to call on every startup)
+  try {
+    const { seedIntegrations } = require('./routes/admin-extended');
+    await seedIntegrations();
+  } catch (err) {
+    logger.error({ err }, 'Failed to seed integrations on startup');
   }
 }
 

@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { useBusiness } from '../context/BusinessContext';
 import ConfirmDialog from './ConfirmDialog';
+import AnalyticsDashboard from './AnalyticsDashboard';
 
 // ─── Business Types ───────────────────────────
 
@@ -865,18 +866,451 @@ function UsersTab() {
   );
 }
 
+// ─── Staff Tab ─────────────────────────────
+
+function StaffTab() {
+  const { fetchWithAuth, user } = useAuth();
+  const toast = useToast();
+  const [staff, setStaff] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingStaff, setEditingStaff] = useState(null);
+  const [availModal, setAvailModal] = useState({ open: false, staff: null });
+
+  useEffect(() => { fetchStaff(); fetchUsers(); }, []);
+
+  async function fetchStaff() {
+    setLoading(true);
+    try {
+      const res = await fetchWithAuth('/api/staff/admin');
+      const d = await res.json();
+      if (res.ok) setStaff(d.staff || []);
+      else setError(d.error || 'Failed to load staff');
+    } catch (err) { setError(err.message); }
+    finally { setLoading(false); }
+  }
+
+  async function fetchUsers() {
+    try {
+      const res = await fetchWithAuth('/api/admin/users');
+      const d = await res.json();
+      if (res.ok) setUsers(d.users || []);
+    } catch { /* silent */ }
+  }
+
+  async function handleCreate(userId) {
+    try {
+      const res = await fetchWithAuth('/api/staff/admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId }),
+      });
+      if (res.ok) { toast.success('Staff member added'); fetchStaff(); setFormOpen(false); }
+      else { const d = await res.json(); toast.error(d.error); }
+    } catch (err) { toast.error(err.message); }
+  }
+
+  async function handleToggleActive(member) {
+    try {
+      await fetchWithAuth(`/api/staff/admin/${member.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_active: member.is_active ? false : true }),
+      });
+      fetchStaff();
+    } catch { /* silent */ }
+  }
+
+  if (loading) return <Spinner />;
+  if (error) return <ErrorBlock message={error} onRetry={fetchStaff} />;
+
+  const nonStaffUsers = users.filter(u => !staff.some(s => s.user_id === u.id) && u.id !== user?.id);
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-xl font-serif font-bold text-text">Staff Management</h2>
+          <p className="text-sm text-text-secondary">{staff.length} staff members</p>
+        </div>
+        <button onClick={() => setFormOpen(true)}
+          className="px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary-dark transition-all shadow-sm flex items-center gap-1.5">
+          <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3v10M3 8h10" strokeLinecap="round" /></svg>
+          Add Staff
+        </button>
+      </div>
+
+      {staff.length === 0 ? (
+        <EmptyBlock icon="👥" title="No Staff" message="Add team members so customers can book with specific providers." />
+      ) : (
+        <div className="space-y-3">
+          {staff.map(m => (
+            <div key={m.id} className="bg-white rounded-xl border border-border p-4 flex items-center gap-4 hover:shadow-sm transition-all">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold"
+                style={{ backgroundColor: m.color || '#6366f1' }}>
+                {m.name?.charAt(0)?.toUpperCase() || '?'}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-text">{m.name}</span>
+                  {m.title && <span className="text-xs text-text-muted">— {m.title}</span>}
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${m.is_active ? 'bg-success-bg text-success border-green-200' : 'bg-gray-50 text-gray-500 border-gray-200'}`}>
+                    {m.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
+                <div className="text-xs text-text-muted mt-0.5">{m.email}{m.phone ? ` · ${m.phone}` : ''}</div>
+              </div>
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <button onClick={() => setAvailModal({ open: true, staff: m })}
+                  className="px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary-bg rounded-lg transition-colors">
+                  Schedule
+                </button>
+                <button onClick={() => handleToggleActive(m)}
+                  className={`px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors ${m.is_active ? 'text-warning hover:bg-warning-bg' : 'text-success hover:bg-success-bg'}`}>
+                  {m.is_active ? 'Deactivate' : 'Activate'}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Add Staff Modal */}
+      {formOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setFormOpen(false)} />
+          <div className="relative bg-white rounded-2xl shadow-xl border border-border w-full max-w-md animate-scale-in p-6">
+            <h3 className="text-lg font-serif font-bold text-text mb-4">Add Staff Member</h3>
+            {nonStaffUsers.length === 0 ? (
+              <p className="text-text-secondary text-sm">All users are already staff members.</p>
+            ) : (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {nonStaffUsers.map(u => (
+                  <button key={u.id} onClick={() => handleCreate(u.id)}
+                    className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-surface-alt border border-border transition-all text-left">
+                    <span className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center text-xs font-bold">
+                      {u.name.charAt(0).toUpperCase()}
+                    </span>
+                    <div>
+                      <p className="font-medium text-text text-sm">{u.name}</p>
+                      <p className="text-xs text-text-muted">{u.email}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+            <button onClick={() => setFormOpen(false)} className="mt-4 w-full py-2.5 rounded-xl border border-border text-text-secondary text-sm font-medium hover:bg-surface-alt transition-all">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Schedule Modal */}
+      {availModal.open && (
+        <ScheduleModal
+          staff={availModal.staff}
+          onClose={() => setAvailModal({ open: false, staff: null })}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Schedule Modal (for Staff) ─────────────
+
+function ScheduleModal({ staff, onClose }) {
+  const { fetchWithAuth } = useAuth();
+  const toast = useToast();
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const [schedule, setSchedule] = useState(
+    days.map((name, i) => ({ day_of_week: i, start_time: '09:00', end_time: '17:00', enabled: i !== 0 && i !== 6 }))
+  );
+  const [saving, setSaving] = useState(false);
+
+  function toggleDay(idx) {
+    setSchedule(s => s.map((d, i) => i === idx ? { ...d, enabled: !d.enabled } : d));
+  }
+
+  function updateTime(idx, field, val) {
+    setSchedule(s => s.map((d, i) => i === idx ? { ...d, [field]: val } : d));
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const availability = schedule.filter(d => d.enabled).map(d => ({
+        day_of_week: d.day_of_week,
+        start_time: d.start_time,
+        end_time: d.end_time,
+      }));
+      const res = await fetchWithAuth(`/api/staff/admin/${staff.id}/availability`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ availability }),
+      });
+      if (res.ok) { toast.success('Schedule saved'); onClose(); }
+      else { const d = await res.json(); toast.error(d.error); }
+    } catch (err) { toast.error(err.message); }
+    setSaving(false);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-xl border border-border w-full max-w-lg animate-scale-in p-6">
+        <h3 className="text-lg font-serif font-bold text-text mb-1">{staff.name}'s Schedule</h3>
+        <p className="text-sm text-text-secondary mb-4">Set weekly availability</p>
+
+        <div className="space-y-2">
+          {schedule.map((d, i) => (
+            <div key={i} className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${d.enabled ? 'bg-white border-border' : 'bg-gray-50 border-dashed'}`}>
+              <label className="flex items-center gap-2 w-28 cursor-pointer">
+                <input type="checkbox" checked={d.enabled} onChange={() => toggleDay(i)}
+                  className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary" />
+                <span className={`text-sm font-medium ${d.enabled ? 'text-text' : 'text-text-muted'}`}>{days[i].slice(0, 3)}</span>
+              </label>
+              {d.enabled && (
+                <div className="flex items-center gap-2 ml-auto">
+                  <input type="time" value={d.start_time} onChange={e => updateTime(i, 'start_time', e.target.value)}
+                    className="px-2 py-1.5 bg-surface-warm border border-border rounded-lg text-sm w-24" />
+                  <span className="text-text-muted">to</span>
+                  <input type="time" value={d.end_time} onChange={e => updateTime(i, 'end_time', e.target.value)}
+                    className="px-2 py-1.5 bg-surface-warm border border-border rounded-lg text-sm w-24" />
+                </div>
+              )}
+              {!d.enabled && <span className="text-xs text-text-muted ml-auto">Day off</span>}
+            </div>
+          ))}
+        </div>
+
+        <div className="flex gap-3 mt-6">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-border text-text-secondary text-sm font-medium hover:bg-surface-alt transition-all">
+            Cancel
+          </button>
+          <button onClick={handleSave} disabled={saving}
+            className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary-dark transition-all disabled:opacity-50 shadow-sm">
+            {saving ? 'Saving...' : 'Save Schedule'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Coupons Tab ────────────────────────────
+
+function CouponsTab() {
+  const { fetchWithAuth } = useAuth();
+  const toast = useToast();
+  const [coupons, setCoupons] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState(null);
+
+  useEffect(() => { fetchCoupons(); }, []);
+
+  async function fetchCoupons() {
+    setLoading(true);
+    try {
+      const res = await fetchWithAuth('/api/coupons/admin');
+      const d = await res.json();
+      if (res.ok) setCoupons(d.coupons || []);
+      else setError(d.error || 'Failed to load coupons');
+    } catch (err) { setError(err.message); }
+    finally { setLoading(false); }
+  }
+
+  async function handleToggle(coupon) {
+    try {
+      await fetchWithAuth(`/api/coupons/admin/${coupon.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_active: !coupon.is_active }),
+      });
+      fetchCoupons();
+    } catch { /* silent */ }
+  }
+
+  async function handleCreate(data) {
+    try {
+      const res = await fetchWithAuth('/api/coupons/admin', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+      });
+      if (res.ok) { toast.success('Coupon created'); setFormOpen(false); fetchCoupons(); }
+      else { const d = await res.json(); toast.error(d.error); }
+    } catch (err) { toast.error(err.message); }
+  }
+
+  if (loading) return <Spinner />;
+  if (error) return <ErrorBlock message={error} onRetry={fetchCoupons} />;
+
+  const active = coupons.filter(c => c.is_active);
+  const inactive = coupons.filter(c => !c.is_active);
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-xl font-serif font-bold text-text">Discount Coupons</h2>
+          <p className="text-sm text-text-secondary">{active.length} active, {inactive.length} inactive</p>
+        </div>
+        <button onClick={() => setFormOpen(true)}
+          className="px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary-dark transition-all shadow-sm flex items-center gap-1.5">
+          <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3v10M3 8h10" strokeLinecap="round" /></svg>
+          New Coupon
+        </button>
+      </div>
+
+      {coupons.length === 0 ? (
+        <EmptyBlock icon="🏷️" title="No Coupons" message="Create discount codes to attract more customers." />
+      ) : (
+        <div className="space-y-2">
+          {coupons.map(c => (
+            <div key={c.id} className={`bg-white rounded-xl border p-4 flex items-center gap-4 ${!c.is_active ? 'opacity-50 border-dashed' : 'border-border'}`}>
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg ${c.is_active ? 'bg-primary-bg' : 'bg-gray-50'}`}>
+                🏷️
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-mono font-bold text-text">{c.code}</span>
+                  <span className="text-sm font-medium text-primary">
+                    {c.discount_type === 'percentage' ? `${c.discount_value}% OFF` : `$${c.discount_value.toFixed(2)} OFF`}
+                  </span>
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${c.is_active ? 'bg-success-bg text-success border-green-200' : 'bg-gray-50 text-gray-500 border-gray-200'}`}>
+                    {c.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
+                <div className="text-xs text-text-muted mt-0.5">
+                  Used {c.current_uses || 0}/{c.max_uses || '∞'} times
+                  {c.valid_until ? ` · Expires ${new Date(c.valid_until).toLocaleDateString()}` : ' · No expiry'}
+                </div>
+              </div>
+              <button onClick={() => handleToggle(c)}
+                className={`px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors ${c.is_active ? 'text-warning hover:bg-warning-bg' : 'text-success hover:bg-success-bg'}`}>
+                {c.is_active ? 'Deactivate' : 'Activate'}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Create Coupon Modal */}
+      {formOpen && <CouponFormModal onClose={() => setFormOpen(false)} onCreate={handleCreate} />}
+    </div>
+  );
+}
+
+// ─── Coupon Form Modal ─────────────────────
+
+function CouponFormModal({ onClose, onCreate }) {
+  const [form, setForm] = useState({
+    code: '', discount_type: 'percentage', discount_value: 10,
+    min_appointment_amount: 0, max_uses: 0, max_uses_per_user: 1,
+    valid_from: '', valid_until: '', description: '',
+  });
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!form.code.trim()) return;
+    setSubmitting(true);
+    await onCreate({
+      ...form,
+      valid_from: form.valid_from || null,
+      valid_until: form.valid_until || null,
+      description: form.description || null,
+    });
+    setSubmitting(false);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-xl border border-border w-full max-w-md animate-scale-in p-6">
+        <h3 className="text-lg font-serif font-bold text-text mb-4">Create Coupon</h3>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div>
+            <label className="block text-sm font-medium text-text mb-1">Code *</label>
+            <input type="text" value={form.code} onChange={e => setForm({ ...form, code: e.target.value.toUpperCase() })}
+              className="w-full px-4 py-2.5 bg-surface-warm border border-border rounded-xl text-sm font-mono" placeholder="SUMMER20" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-text mb-1">Type</label>
+              <select value={form.discount_type} onChange={e => setForm({ ...form, discount_type: e.target.value })}
+                className="w-full px-3 py-2.5 bg-surface-warm border border-border rounded-xl text-sm">
+                <option value="percentage">Percentage</option>
+                <option value="fixed_amount">Fixed Amount</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-text mb-1">Value</label>
+              <input type="number" min={1} max={form.discount_type === 'percentage' ? 100 : 9999}
+                value={form.discount_value} onChange={e => setForm({ ...form, discount_value: parseFloat(e.target.value) || 0 })}
+                className="w-full px-4 py-2.5 bg-surface-warm border border-border rounded-xl text-sm" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-text mb-1">Valid From</label>
+              <input type="date" value={form.valid_from} onChange={e => setForm({ ...form, valid_from: e.target.value })}
+                className="w-full px-4 py-2.5 bg-surface-warm border border-border rounded-xl text-sm" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-text mb-1">Valid Until</label>
+              <input type="date" value={form.valid_until} onChange={e => setForm({ ...form, valid_until: e.target.value })}
+                className="w-full px-4 py-2.5 bg-surface-warm border border-border rounded-xl text-sm" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-text mb-1">Max Uses</label>
+              <input type="number" min={0} value={form.max_uses} onChange={e => setForm({ ...form, max_uses: parseInt(e.target.value) || 0 })}
+                className="w-full px-4 py-2.5 bg-surface-warm border border-border rounded-xl text-sm" placeholder="0 = unlimited" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-text mb-1">Per User</label>
+              <input type="number" min={1} value={form.max_uses_per_user} onChange={e => setForm({ ...form, max_uses_per_user: parseInt(e.target.value) || 1 })}
+                className="w-full px-4 py-2.5 bg-surface-warm border border-border rounded-xl text-sm" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-text mb-1">Description</label>
+            <input type="text" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })}
+              className="w-full px-4 py-2.5 bg-surface-warm border border-border rounded-xl text-sm" placeholder="Summer Sale - 20% off" />
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose}
+              className="flex-1 py-2.5 rounded-xl border border-border text-text-secondary text-sm font-medium hover:bg-surface-alt transition-all">Cancel</button>
+            <button type="submit" disabled={submitting}
+              className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary-dark transition-all disabled:opacity-50 shadow-sm">
+              {submitting ? 'Creating...' : 'Create Coupon'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Admin Dashboard ──────────────────
 
 export default function AdminDashboard() {
   const { user, fetchWithAuth } = useAuth();
   const { settings } = useBusiness();
   const [tab, setTab] = useState('settings');
-  const [stats, setStats] = useState({ services: 0, appointments: 0, users: 0 });
+  const [stats, setStats] = useState({ services: 0, appointments: 0, users: 0, staff: 0, coupons: 0, revenue: 0, customers: 0 });
   const [loadingStats, setLoadingStats] = useState(true);
 
   const tabs = [
     { id: 'settings', label: 'Settings', icon: '⚙️' },
+    { id: 'staff', label: 'Staff', icon: '👥' },
     { id: 'services', label: 'Services', icon: '📋' },
+    { id: 'coupons', label: 'Coupons', icon: '🏷️' },
+    { id: 'analytics', label: 'Analytics', icon: '📊' },
     { id: 'appointments', label: 'Appointments', icon: '📅' },
     { id: 'users', label: 'Users', icon: '👥' },
   ];
@@ -887,18 +1321,28 @@ export default function AdminDashboard() {
 
   async function fetchStats() {
     try {
-      const [svcRes, aptRes, usrRes] = await Promise.all([
+      const [svcRes, aptRes, usrRes, staffRes, coupRes, anlRes] = await Promise.all([
         fetchWithAuth('/api/admin/services'),
         fetchWithAuth('/api/admin/appointments?limit=1'),
         fetchWithAuth('/api/admin/users'),
+        fetchWithAuth('/api/staff/admin'),
+        fetchWithAuth('/api/coupons/admin'),
+        fetchWithAuth('/api/analytics/summary?period=all'),
       ]);
       const svc = await svcRes.json();
       const apt = await aptRes.json();
       const usr = await usrRes.json();
+      const stf = await staffRes.json();
+      const cp = await coupRes.json();
+      const anl = svcRes.ok && stfRes.ok ? await anlRes.json() : { summary: {} };
       setStats({
         services: svc.services?.filter(s => s.is_active).length || 0,
         appointments: apt.pagination?.total || 0,
         users: usr.users?.length || 0,
+        staff: stf.staff?.length || 0,
+        coupons: cp.coupons?.filter(c => c.is_active).length || 0,
+        revenue: anl.summary?.total_revenue || 0,
+        customers: anl.summary?.active_customers || 0,
       });
     } catch { /* silent */ }
     setLoadingStats(false);
@@ -927,12 +1371,12 @@ export default function AdminDashboard() {
         <span className="inline-block text-xs font-semibold uppercase tracking-widest mb-3"
           style={{ color: settings?.primary_color || '#e11d48' }}>Administration</span>
         <h1 className="text-3xl sm:text-4xl font-serif font-bold text-text tracking-tight">Admin Dashboard</h1>
-        <p className="text-text-secondary mt-1">Manage your business, services, appointments, and users</p>
+        <p className="text-text-secondary mt-1">Manage your business, services, appointments, staff, and users</p>
       </div>
 
       {/* Stats Cards */}
       {!loadingStats && (
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-8">
           <div className="bg-white rounded-xl border border-border p-5 shadow-sm hover:shadow-md transition-all cursor-pointer" onClick={() => setTab('settings')}>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg"
@@ -943,12 +1387,21 @@ export default function AdminDashboard() {
               </div>
             </div>
           </div>
+          <div className="bg-white rounded-xl border border-border p-5 shadow-sm hover:shadow-md transition-all cursor-pointer" onClick={() => setTab('staff')}>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg" style={{ backgroundColor: `${settings?.primary_color || '#6366f1'}15` }}>👥</div>
+              <div>
+                <p className="text-2xl font-bold text-text">{stats.staff}</p>
+                <p className="text-xs text-text-muted">Staff</p>
+              </div>
+            </div>
+          </div>
           <div className="bg-white rounded-xl border border-border p-5 shadow-sm hover:shadow-md transition-all cursor-pointer" onClick={() => setTab('services')}>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-primary-bg rounded-xl flex items-center justify-center text-lg">📋</div>
               <div>
                 <p className="text-2xl font-bold text-text">{stats.services}</p>
-                <p className="text-xs text-text-muted">Active Services</p>
+                <p className="text-xs text-text-muted">Services</p>
               </div>
             </div>
           </div>
@@ -961,12 +1414,22 @@ export default function AdminDashboard() {
               </div>
             </div>
           </div>
-          <div className="bg-white rounded-xl border border-border p-5 shadow-sm hover:shadow-md transition-all cursor-pointer" onClick={() => setTab('users')}>
+          <div className="bg-white rounded-xl border border-border p-5 shadow-sm hover:shadow-md transition-all cursor-pointer" onClick={() => setTab('coupons')}>
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center text-lg">👥</div>
+              <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center text-lg">🏷️</div>
               <div>
-                <p className="text-2xl font-bold text-text">{stats.users}</p>
-                <p className="text-xs text-text-muted">Users</p>
+                <p className="text-2xl font-bold text-text">{stats.coupons}</p>
+                <p className="text-xs text-text-muted">Coupons</p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl border border-border p-5 shadow-sm hover:shadow-md transition-all cursor-pointer" onClick={() => setTab('analytics')}>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-lg">📊</div>
+              <div>
+                <p className="text-2xl font-bold text-text">${stats.revenue > 0 ? parseFloat(stats.revenue).toLocaleString(undefined, { minimumFractionDigits: 0 }) : 0}</p>
+                <p className="text-xs text-text-muted">Revenue</p>
+                {stats.customers > 0 && <p className="text-[10px] text-text-muted">{stats.customers} customers</p>}
               </div>
             </div>
           </div>
@@ -990,7 +1453,10 @@ export default function AdminDashboard() {
       {/* Tab Content */}
       <div className="bg-white rounded-2xl border border-border p-6 shadow-sm">
         {tab === 'settings' && <SettingsTab />}
+        {tab === 'staff' && <StaffTab />}
         {tab === 'services' && <ServicesTab />}
+        {tab === 'coupons' && <CouponsTab />}
+        {tab === 'analytics' && <AnalyticsDashboard />}
         {tab === 'appointments' && <AppointmentsTab />}
         {tab === 'users' && <UsersTab />}
       </div>

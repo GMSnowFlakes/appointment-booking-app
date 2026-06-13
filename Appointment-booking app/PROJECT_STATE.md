@@ -353,6 +353,7 @@ Appointment-booking app/
 - ✅ **Input Validation** — Zod schemas for all endpoints with reusable `validate()` helper
 - ✅ **Environment Setup** — `.env.example` with all config vars documented
 - ✅ **PostgreSQL Migration** — Switched from SQLite (sql.js) to PostgreSQL (pg) with connection pooling
+- ✅ **E2E Test Infrastructure (PostgreSQL)** — Updated `seed-admin.cjs` from SQLite to PostgreSQL-compatible async API (`queryOne`, `$1` params). Playwright config uses unique `PG_SCHEMA` per run for test isolation with explicit `DATABASE_URL`. Removed all SQLite relics (`DB_PATH`, `.exec()`, file-based DB paths).
 - ✅ **One-click Deploy** — Railway-ready via `nixpacks.toml` + `docker-compose.yml` for local Postgres
 
 ---
@@ -443,3 +444,14 @@ npx vitest --watch              # watch mode
 
 Tests use unique Postgres schemas per file (isolated, auto-cleaned).
 Coverage reports (text, lcov, html) are generated via `@vitest/coverage-v8` and saved to `server/coverage/`.
+
+#### E2E Tests (Playwright)
+
+```bash
+# Ensure Docker Postgres is running first (docker compose up -d)
+cd "Appointment-booking app/client"
+npm run e2e                    # headless mode
+npm run e2e:headed             # with visible browser
+```
+
+**What it does:** Auto-starts the API server and Vite dev server. Each run creates an isolated Postgres schema (`e2e_<timestamp>`) so tests don't interfere with each other or dev data.

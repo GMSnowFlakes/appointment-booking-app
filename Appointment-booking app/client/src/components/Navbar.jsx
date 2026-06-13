@@ -39,6 +39,15 @@ function ListIcon({ className }) {
   );
 }
 
+function ClockIcon({ className }) {
+  return (
+    <svg className={className} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <circle cx="10" cy="10" r="7.5" />
+      <path d="M10 5.5V10l3.5 2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function BellIcon({ className }) {
   return (
     <svg className={className} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -87,6 +96,7 @@ export default function Navbar({ currentPage, onNavigate }) {
       { id: 'book', label: 'Book Appointment', icon: BookIcon },
       { id: 'appointments', label: 'My Appointments', icon: CalendarIcon },
       { id: 'notifications', label: 'Notifications', icon: BellIcon },
+      { id: 'waiting-list', label: 'Waiting List', icon: ClockIcon },
     ] : []),
     ...(user?.role === 'admin' ? [{ id: 'admin', label: 'Admin', icon: SettingsIcon }] : []),
   ];
