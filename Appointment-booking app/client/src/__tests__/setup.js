@@ -4,18 +4,23 @@ import '@testing-library/jest-dom';
 global.fetch = vi.fn();
 
 // Mock IntersectionObserver (not available in jsdom)
-global.IntersectionObserver = vi.fn(() => ({
-  observe: vi.fn(),
-  unobserve: vi.fn(),
-  disconnect: vi.fn(),
-}));
+// Must use regular function (not arrow) so it can be called with `new`
+global.IntersectionObserver = vi.fn().mockImplementation(function mockIntersectionObserver() {
+  return {
+    observe: vi.fn(),
+    unobserve: vi.fn(),
+    disconnect: vi.fn(),
+  };
+});
 
 // Mock ResizeObserver
-global.ResizeObserver = vi.fn(() => ({
-  observe: vi.fn(),
-  unobserve: vi.fn(),
-  disconnect: vi.fn(),
-}));
+global.ResizeObserver = vi.fn().mockImplementation(function mockResizeObserver() {
+  return {
+    observe: vi.fn(),
+    unobserve: vi.fn(),
+    disconnect: vi.fn(),
+  };
+});
 
 // Mock localStorage
 const localStorageMock = (() => {

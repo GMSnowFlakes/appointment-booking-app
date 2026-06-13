@@ -98,7 +98,7 @@ function AppContent() {
       case 'admin': return <AdminDashboard />;
       case 'profile': return <ProfilePage />;
       case 'waiting-list': return <WaitingListManager key={refreshAppointments} />;
-      case 'checkout': return <CheckoutForm appointment={/* will be set by BookingForm */} onSuccess={() => setPage('appointments')} onCancel={() => setPage('book')} />;
+      case 'checkout': return <CheckoutForm appointment={null} onSuccess={() => setPage('appointments')} onCancel={() => setPage('book')} />;  // appointment will be set by BookingForm
       case 'services':
       default: return <ServiceList />;
     }

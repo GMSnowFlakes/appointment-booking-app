@@ -98,7 +98,6 @@ function ServiceFormModal({ open, service, onClose, onSaved }) {
       const url = isEdit ? `/api/admin/services/${service.id}` : '/api/admin/services';
       const method = isEdit ? 'PUT' : 'POST';
 
-      // Use FormData if there's an image file, otherwise send JSON
       let body;
       let headers = {};
       if (imageFile) {
@@ -218,6 +217,28 @@ function ServiceFormModal({ open, service, onClose, onSaved }) {
   );
 }
 
+// ─── CSV Download Helper ───────────────────────
+
+function downloadCsv(fetchWithAuth, endpoint, filename) {
+  return async function handleDownload() {
+    try {
+      const res = await fetchWithAuth(endpoint);
+      if (!res.ok) throw new Error('Failed to export');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('CSV download failed:', err);
+    }
+  };
+}
+
 // ─── Shared Components ───────────────────────
 
 function Spinner() {
@@ -234,7 +255,9 @@ function Spinner() {
 function ErrorBlock({ message, onRetry }) {
   return (
     <div className="bg-white rounded-xl border border-border p-8 text-center">
-      <div className="w-12 h-12 mx-auto mb-3 bg-error-bg rounded-xl flex items-center justify-center">😕</div>
+      <div className="w-12 h-12 mx-auto mb-3 bg-error-bg rounded-xl flex items-center justify-center">
+        <svg className="w-6 h-6 text-error" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+      </div>
       <p className="text-text-secondary text-sm mb-4">{message}</p>
       {onRetry && <button onClick={onRetry} className="px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary-dark transition-colors shadow-sm">Try Again</button>}
     </div>
@@ -244,9 +267,254 @@ function ErrorBlock({ message, onRetry }) {
 function EmptyBlock({ icon, title, message }) {
   return (
     <div className="bg-white rounded-xl border border-border p-12 text-center">
-      <div className="w-14 h-14 mx-auto mb-4 bg-primary-bg rounded-2xl flex items-center justify-center text-2xl">{icon}</div>
+      <div className="w-14 h-14 mx-auto mb-4 bg-primary-bg rounded-2xl flex items-center justify-center">{icon}</div>
       <h3 className="text-lg font-semibold text-text mb-1">{title}</h3>
       <p className="text-text-secondary text-sm">{message}</p>
+    </div>
+  );
+}
+
+// ─── SVG Icon Components ───────────────────────
+
+function Icon({ name, className = 'w-5 h-5', ...rest }) {
+  const svgProps = { className, ...rest };
+  const icons = {
+    storyline: <svg {...svgProps} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>,
+    settings: <svg {...svgProps} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" /></svg>,
+    people: <svg {...svgProps} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87" /><path d="M16 3.13a4 4 0 010 7.75" /></svg>,
+    services: <svg {...svgProps} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z" /></svg>,
+    coupon: <svg {...svgProps} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z" /><line x1="7" y1="7" x2="7.01" y2="7" /></svg>,
+    analytics: <svg {...svgProps} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg>,
+    calendar: <svg {...svgProps} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>,
+    users: <svg {...svgProps} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87" /><path d="M16 3.13a4 4 0 010 7.75" /></svg>,
+    sparkle: <svg {...svgProps} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z" /><path d="M18 15l1 3 3 1-3 1-1 3-1-3-3-1 3-1 1-3z" /></svg>,
+    eyeball: <svg {...svgProps} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>,
+    trending: <svg {...svgProps} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18" /><polyline points="17 6 23 6 23 12" /></svg>,
+    dollar: <svg {...svgProps} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" /></svg>,
+    clock: <svg {...svgProps} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>,
+    checkBadge: <svg {...svgProps} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M9 12l2 2 4-4" /></svg>,
+    arrowUp: <svg {...svgProps} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15" /></svg>,
+    arrowDown: <svg {...svgProps} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>,
+  };
+  return icons[name] || <svg {...svgProps} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>;
+}
+
+// ─── Business Story Tab ─────────────────────────
+// A narrative overview showing the whole production flow — the story of the business
+
+function StoryTab() {
+  const { fetchWithAuth } = useAuth();
+  const { settings } = useBusiness();
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const exportRevenue = downloadCsv(fetchWithAuth, '/api/export/revenue', `revenue_${new Date().toISOString().slice(0, 10)}.csv`);
+
+  useEffect(() => {
+    loadStory();
+  }, []);
+
+  async function loadStory() {
+    setLoading(true);
+    try {
+      const [svcRes, aptRes, usrRes, staffRes, anlRes] = await Promise.all([
+        fetchWithAuth('/api/admin/services'),
+        fetchWithAuth('/api/admin/appointments?limit=1'),
+        fetchWithAuth('/api/admin/users'),
+        fetchWithAuth('/api/staff/admin'),
+        fetchWithAuth('/api/analytics/summary?period=all'),
+      ]);
+      const svc = await svcRes.json();
+      const apt = await aptRes.json();
+      const usr = await usrRes.json();
+      const stf = await staffRes.json();
+      const anl = anlRes.ok ? await anlRes.json() : { summary: {} };
+
+      const s = anl.summary || {};
+      setData({
+        bookings: s.total_bookings || 0,
+        revenue: parseFloat(s.total_revenue) || 0,
+        avgValue: parseFloat(s.avg_booking_value) || 0,
+        customers: s.active_customers || 0,
+        cancellations: s.cancellations || 0,
+        growth: s.revenue_growth,
+        bookingGrowth: s.booking_growth,
+        thisMonth: s.this_month,
+        lastMonth: s.last_month,
+        services: svc.services?.filter(x => x.is_active).length || 0,
+        totalServices: svc.services?.length || 0,
+        appointments: apt.pagination?.total || 0,
+        totalUsers: usr.users?.length || 0,
+        staff: stf.staff?.length || 0,
+      });
+    } catch { /* silent */ }
+    setLoading(false);
+  }
+
+  if (loading) return <Spinner />;
+
+  const storyChapters = [
+    { label: 'Business Founded', desc: settings?.business_name || 'Your Business', icon: 'sparkle', color: 'bg-amber-50 text-amber-600 border-amber-200', stat: settings?.business_type || 'salon', unit: 'type' },
+    { label: 'Services Offered', desc: 'Crafting quality experiences', icon: 'services', color: 'bg-blue-50 text-blue-600 border-blue-200', stat: data?.services || 0, unit: 'active' },
+    { label: 'Team Members', desc: 'Skilled professionals', icon: 'people', color: 'bg-purple-50 text-purple-600 border-purple-200', stat: data?.staff || 0, unit: 'staff' },
+    { label: 'Customers Served', desc: 'Happy clients served', icon: 'users', color: 'bg-green-50 text-green-600 border-green-200', stat: data?.customers || 0, unit: 'people' },
+    { label: 'Appointments Booked', desc: 'Total reservations fulfilled', icon: 'calendar', color: 'bg-rose-50 text-rose-600 border-rose-200', stat: data?.bookings || 0, unit: 'bookings' },
+    { label: 'Revenue Generated', desc: 'Total earnings to date', icon: 'dollar', color: 'bg-emerald-50 text-emerald-600 border-emerald-200', stat: `$${data?.revenue > 0 ? parseFloat(data.revenue).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : '0'}`, unit: 'gross' },
+  ];
+
+  const primaryColor = settings?.primary_color || '#e11d48';
+
+  return (
+    <div className="space-y-8">
+      {/* Hero section — the "About" of the business */}
+      <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-white to-surface-warm p-8">
+        <div className="relative z-10">
+          <div className="flex items-center gap-3 mb-2">
+            <Icon name="storyline" className="w-5 h-5" style={{ color: primaryColor }} />
+            <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: primaryColor }}>The Story</span>
+          </div>
+          <h2 className="text-2xl sm:text-3xl font-serif font-bold text-text mt-1">
+            {settings?.business_name || 'Your Business'}
+          </h2>
+          <p className="text-text-secondary mt-2 max-w-2xl leading-relaxed">
+            {settings?.business_description || 'A complete overview of your business journey — from the services you offer to every appointment fulfilled. This is your production story, showing how your team turns every booking into an experience.'}
+          </p>
+          <div className="flex flex-wrap items-center gap-4 mt-4">
+            <div className="flex items-center gap-2 text-sm text-text-muted bg-surface-warm px-3 py-1.5 rounded-lg border border-border">
+              <Icon name="eyeball" className="w-4 h-4" />
+              <span>{data?.totalUsers || 0} registered users</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm text-text-muted bg-surface-warm px-3 py-1.5 rounded-lg border border-border">
+              <Icon name="services" className="w-4 h-4" />
+              <span>{data?.totalServices || 0} total services</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm text-text-muted bg-surface-warm px-3 py-1.5 rounded-lg border border-border">
+              <Icon name="trending" className="w-4 h-4" />
+              <span>{data?.bookings || 0} lifetime bookings</span>
+            </div>
+            <button onClick={exportRevenue}
+              className="flex items-center gap-2 text-sm text-primary font-medium bg-primary-bg px-3 py-1.5 rounded-lg border border-primary/20 hover:bg-primary/10 hover:border-primary/40 transition-all">
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+              Export Revenue CSV
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Production timeline — narrative flow */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        {storyChapters.map((ch, i) => (
+          <div key={i} className="relative group">
+            <div className={`rounded-xl border ${ch.color} p-4 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5`}>
+              <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-white shadow-sm border border-inherit mb-3">
+                <Icon name={ch.icon} className="w-5 h-5" />
+              </div>
+              <p className="text-2xl font-bold text-text">{ch.stat}</p>
+              <p className="text-xs text-text-muted mt-0.5">{ch.unit}</p>
+              <p className="text-sm font-medium text-text mt-2">{ch.label}</p>
+              <p className="text-[10px] text-text-muted mt-0.5">{ch.desc}</p>
+            </div>
+            {/* Connector arrow between cards (hidden on mobile) */}
+            {i < storyChapters.length - 1 && (
+              <div className="hidden lg:block absolute -right-2 top-1/2 -translate-y-1/2 z-10 text-text-muted/30">
+                <Icon name="arrowUp" className="w-4 h-4 rotate-90" />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Growth metrics row */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-white rounded-xl border border-border p-5 shadow-sm">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ backgroundColor: primaryColor + '15' }}>
+              <Icon name="trending" className="w-4 h-4" style={{ color: primaryColor }} />
+            </div>
+            <span className="text-sm font-semibold text-text">Monthly Performance</span>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs text-text-muted">This Month</p>
+              <p className="text-lg font-bold text-text">{data?.thisMonth?.bookings || 0} bookings</p>
+              <p className="text-sm font-semibold" style={{ color: primaryColor }}>${(data?.thisMonth?.revenue || 0).toLocaleString(undefined, { minimumFractionDigits: 0 })}</p>
+            </div>
+            <div>
+              <p className="text-xs text-text-muted">Last Month</p>
+              <p className="text-lg font-bold text-text">{data?.lastMonth?.bookings || 0} bookings</p>
+              <p className="text-sm text-text-secondary">${(data?.lastMonth?.revenue || 0).toLocaleString(undefined, { minimumFractionDigits: 0 })}</p>
+            </div>
+          </div>
+          {data?.growth != null && (
+            <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-border">
+              <Icon name={data.growth >= 0 ? 'arrowUp' : 'arrowDown'} className={`w-4 h-4 ${data.growth >= 0 ? 'text-green-500' : 'text-red-500'}`} />
+              <span className={`text-sm font-medium ${data.growth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {Math.abs(parseFloat(data.growth)).toFixed(1)}% revenue growth
+              </span>
+            </div>
+          )}
+        </div>
+
+        <div className="bg-white rounded-xl border border-border p-5 shadow-sm">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ backgroundColor: primaryColor + '15' }}>
+              <Icon name="checkBadge" className="w-4 h-4" style={{ color: primaryColor }} />
+            </div>
+            <span className="text-sm font-semibold text-text">Service Quality</span>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <div className="flex items-center justify-between text-sm mb-1">
+                <span className="text-text-secondary">Avg. Booking Value</span>
+                <span className="font-semibold text-text">${parseFloat(data?.avgValue || 0).toFixed(2)}</span>
+              </div>
+              <div className="w-full bg-gray-100 rounded-full h-2">
+                <div className="h-2 rounded-full transition-all" style={{ width: `${Math.min((data?.avgValue || 0) / 100 * 100, 100)}%`, backgroundColor: primaryColor }} />
+              </div>
+            </div>
+            <div>
+              <div className="flex items-center justify-between text-sm mb-1">
+                <span className="text-text-secondary">Retention Rate</span>
+                <span className="font-semibold text-text">{(data?.bookings && data?.customers ? (data.bookings / Math.max(data.customers, 1)).toFixed(1) : '0')}x</span>
+              </div>
+              <div className="w-full bg-gray-100 rounded-full h-2">
+                <div className="h-2 rounded-full bg-emerald-400 transition-all" style={{ width: `${Math.min((data?.bookings && data?.customers ? (data.bookings / Math.max(data.customers, 1)) * 20 : 0), 100)}%` }} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl border border-border p-5 shadow-sm">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ backgroundColor: primaryColor + '15' }}>
+              <Icon name="clock" className="w-4 h-4" style={{ color: primaryColor }} />
+            </div>
+            <span className="text-sm font-semibold text-text">Production Overview</span>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between py-1.5 border-b border-border/50 last:border-0">
+              <span className="text-sm text-text-secondary">Active Services</span>
+              <span className="text-sm font-semibold text-text">{data?.services || 0}</span>
+            </div>
+            <div className="flex items-center justify-between py-1.5 border-b border-border/50 last:border-0">
+              <span className="text-sm text-text-secondary">Team Size</span>
+              <span className="text-sm font-semibold text-text">{data?.staff || 0}</span>
+            </div>
+            <div className="flex items-center justify-between py-1.5 border-b border-border/50 last:border-0">
+              <span className="text-sm text-text-secondary">Appointments</span>
+              <span className="text-sm font-semibold text-text">{data?.appointments || 0}</span>
+            </div>
+            <div className="flex items-center justify-between py-1.5 border-b border-border/50 last:border-0">
+              <span className="text-sm text-text-secondary">Registered Users</span>
+              <span className="text-sm font-semibold text-text">{data?.totalUsers || 0}</span>
+            </div>
+            <div className="flex items-center justify-between py-1.5">
+              <span className="text-sm text-text-secondary">Cancellations</span>
+              <span className="text-sm font-semibold text-text">{data?.cancellations || 0}</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -261,10 +529,8 @@ function SettingsTab() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
   const [loaded, setLoaded] = useState(false);
-  // Track all known categories from services
   const [serviceCategories, setServiceCategories] = useState([]);
 
-  // Fetch all service categories for the color picker
   useEffect(() => {
     fetch('/api/services/categories')
       .then(r => r.json())
@@ -325,7 +591,6 @@ function SettingsTab() {
         <p className="text-sm text-text-secondary">Configure your business profile and appearance</p>
       </div>
 
-      {/* Current business card preview */}
       <div className="bg-surface-warm rounded-xl border border-border p-5 mb-6 flex items-center gap-4">
         <div className="w-14 h-14 rounded-xl flex items-center justify-center text-2xl shadow-sm"
           style={{ backgroundColor: form.primary_color + '15' }}>
@@ -403,7 +668,6 @@ function SettingsTab() {
           </div>
         </div>
 
-        {/* Category Colors Section */}
         {serviceCategories.length > 0 && (
           <div>
             <label className="block text-sm font-medium text-text mb-1.5">Category Colors</label>
@@ -466,6 +730,8 @@ function ServicesTab() {
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, service: null });
   const [restoreConfirm, setRestoreConfirm] = useState({ open: false, service: null });
 
+  const exportServices = downloadCsv(fetchWithAuth, '/api/export/services', `services_${new Date().toISOString().slice(0, 10)}.csv`);
+
   useEffect(() => { fetchServices(); }, []);
 
   async function fetchServices() {
@@ -513,15 +779,22 @@ function ServicesTab() {
           <h2 className="text-xl font-serif font-bold text-text">Manage Services</h2>
           <p className="text-sm text-text-secondary">{active.length} active, {inactive.length} inactive</p>
         </div>
-        <button onClick={openCreate}
-          className="px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary-dark transition-all shadow-sm flex items-center gap-1.5">
-          <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3v10M3 8h10" strokeLinecap="round" /></svg>
-          Add Service
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={exportServices}
+            className="px-3 py-2.5 border border-border text-text-secondary rounded-xl text-sm font-medium hover:bg-surface-alt hover:text-text transition-all flex items-center gap-1.5">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+            Export CSV
+          </button>
+          <button onClick={openCreate}
+            className="px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary-dark transition-all shadow-sm flex items-center gap-1.5">
+            <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3v10M3 8h10" strokeLinecap="round" /></svg>
+            Add Service
+          </button>
+        </div>
       </div>
 
       {services.length === 0 ? (
-        <EmptyBlock icon="📭" title="No Services" message="Add your first service to get started." />
+        <EmptyBlock icon={<Icon name="services" className="w-6 h-6" />} title="No Services" message="Add your first service to get started." />
       ) : (
         <div className="overflow-x-auto -mx-6">
           <table className="w-full text-sm">
@@ -614,6 +887,8 @@ function AppointmentsTab() {
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 0 });
 
+  const exportAppointments = downloadCsv(fetchWithAuth, '/api/export/appointments', `appointments_${new Date().toISOString().slice(0, 10)}.csv`);
+
   useEffect(() => { setPage(1); fetchAppointments(1); }, [statusFilter]);
   useEffect(() => { if (page > 1) fetchAppointments(page); }, [page]);
 
@@ -660,6 +935,11 @@ function AppointmentsTab() {
           <p className="text-sm text-text-secondary">{pagination.total} total{pagination.totalPages > 1 ? ` (page ${pagination.page} of ${pagination.totalPages})` : ''}</p>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={exportAppointments}
+            className="px-3 py-2 border border-border text-text-secondary rounded-xl text-sm font-medium hover:bg-surface-alt hover:text-text transition-all flex items-center gap-1.5">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+            Export CSV
+          </button>
           <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
             className="px-3 py-2 bg-surface-warm border border-border rounded-xl text-sm focus:outline-none focus:border-primary transition-all">
             <option value="">All Statuses</option>
@@ -677,7 +957,7 @@ function AppointmentsTab() {
       </div>
 
       {appointments.length === 0 ? (
-        <EmptyBlock icon="📭" title="No Appointments" message="No appointments match your filter." />
+        <EmptyBlock icon={<Icon name="calendar" className="w-6 h-6" />} title="No Appointments" message="No appointments match your filter." />
       ) : (
         <>
           <div className="space-y-3">
@@ -797,7 +1077,7 @@ function UsersTab() {
         </div>
       </div>
       {users.length === 0 ? (
-        <EmptyBlock icon="👥" title="No Users" message="No users registered yet." />
+        <EmptyBlock icon={<Icon name="users" className="w-6 h-6" />} title="No Users" message="No users registered yet." />
       ) : (
         <div className="overflow-x-auto -mx-6">
           <table className="w-full text-sm">
@@ -943,7 +1223,7 @@ function StaffTab() {
       </div>
 
       {staff.length === 0 ? (
-        <EmptyBlock icon="👥" title="No Staff" message="Add team members so customers can book with specific providers." />
+        <EmptyBlock icon={<Icon name="people" className="w-6 h-6" />} title="No Staff" message="Add team members so customers can book with specific providers." />
       ) : (
         <div className="space-y-3">
           {staff.map(m => (
@@ -977,7 +1257,6 @@ function StaffTab() {
         </div>
       )}
 
-      {/* Add Staff Modal */}
       {formOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setFormOpen(false)} />
@@ -1008,7 +1287,6 @@ function StaffTab() {
         </div>
       )}
 
-      {/* Schedule Modal */}
       {availModal.open && (
         <ScheduleModal
           staff={availModal.staff}
@@ -1063,7 +1341,6 @@ function ScheduleModal({ staff, onClose }) {
       <div className="relative bg-white rounded-2xl shadow-xl border border-border w-full max-w-lg animate-scale-in p-6">
         <h3 className="text-lg font-serif font-bold text-text mb-1">{staff.name}'s Schedule</h3>
         <p className="text-sm text-text-secondary mb-4">Set weekly availability</p>
-
         <div className="space-y-2">
           {schedule.map((d, i) => (
             <div key={i} className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${d.enabled ? 'bg-white border-border' : 'bg-gray-50 border-dashed'}`}>
@@ -1085,11 +1362,8 @@ function ScheduleModal({ staff, onClose }) {
             </div>
           ))}
         </div>
-
         <div className="flex gap-3 mt-6">
-          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-border text-text-secondary text-sm font-medium hover:bg-surface-alt transition-all">
-            Cancel
-          </button>
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-border text-text-secondary text-sm font-medium hover:bg-surface-alt transition-all">Cancel</button>
           <button onClick={handleSave} disabled={saving}
             className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary-dark transition-all disabled:opacity-50 shadow-sm">
             {saving ? 'Saving...' : 'Save Schedule'}
@@ -1165,13 +1439,13 @@ function CouponsTab() {
       </div>
 
       {coupons.length === 0 ? (
-        <EmptyBlock icon="🏷️" title="No Coupons" message="Create discount codes to attract more customers." />
+        <EmptyBlock icon={<Icon name="coupon" className="w-6 h-6" />} title="No Coupons" message="Create discount codes to attract more customers." />
       ) : (
         <div className="space-y-2">
           {coupons.map(c => (
             <div key={c.id} className={`bg-white rounded-xl border p-4 flex items-center gap-4 ${!c.is_active ? 'opacity-50 border-dashed' : 'border-border'}`}>
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg ${c.is_active ? 'bg-primary-bg' : 'bg-gray-50'}`}>
-                🏷️
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${c.is_active ? 'bg-primary-bg' : 'bg-gray-50'}`}>
+                <Icon name="coupon" className="w-5 h-5 text-primary" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -1197,7 +1471,6 @@ function CouponsTab() {
         </div>
       )}
 
-      {/* Create Coupon Modal */}
       {formOpen && <CouponFormModal onClose={() => setFormOpen(false)} onCreate={handleCreate} />}
     </div>
   );
@@ -1301,18 +1574,19 @@ function CouponFormModal({ onClose, onCreate }) {
 export default function AdminDashboard() {
   const { user, fetchWithAuth } = useAuth();
   const { settings } = useBusiness();
-  const [tab, setTab] = useState('settings');
+  const [tab, setTab] = useState('story');
   const [stats, setStats] = useState({ services: 0, appointments: 0, users: 0, staff: 0, coupons: 0, revenue: 0, customers: 0 });
   const [loadingStats, setLoadingStats] = useState(true);
 
   const tabs = [
-    { id: 'settings', label: 'Settings', icon: '⚙️' },
-    { id: 'staff', label: 'Staff', icon: '👥' },
-    { id: 'services', label: 'Services', icon: '📋' },
-    { id: 'coupons', label: 'Coupons', icon: '🏷️' },
-    { id: 'analytics', label: 'Analytics', icon: '📊' },
-    { id: 'appointments', label: 'Appointments', icon: '📅' },
-    { id: 'users', label: 'Users', icon: '👥' },
+    { id: 'story', label: 'Story', icon: 'storyline' },
+    { id: 'settings', label: 'Settings', icon: 'settings' },
+    { id: 'staff', label: 'Staff', icon: 'people' },
+    { id: 'services', label: 'Services', icon: 'services' },
+    { id: 'coupons', label: 'Coupons', icon: 'coupon' },
+    { id: 'analytics', label: 'Analytics', icon: 'analytics' },
+    { id: 'appointments', label: 'Appointments', icon: 'calendar' },
+    { id: 'users', label: 'Users', icon: 'users' },
   ];
 
   useEffect(() => {
@@ -1334,7 +1608,7 @@ export default function AdminDashboard() {
       const usr = await usrRes.json();
       const stf = await staffRes.json();
       const cp = await coupRes.json();
-      const anl = svcRes.ok && stfRes.ok ? await anlRes.json() : { summary: {} };
+      const anl = anlRes.ok ? await anlRes.json() : { summary: {} };
       setStats({
         services: svc.services?.filter(s => s.is_active).length || 0,
         appointments: apt.pagination?.total || 0,
@@ -1365,86 +1639,62 @@ export default function AdminDashboard() {
     );
   }
 
+  const primaryColor = settings?.primary_color || '#e11d48';
+  const accentBg = (opacity = '15') => `${primaryColor}${opacity}`;
+
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 animate-fade-in">
+      {/* Header */}
       <div className="mb-8">
-        <span className="inline-block text-xs font-semibold uppercase tracking-widest mb-3"
-          style={{ color: settings?.primary_color || '#e11d48' }}>Administration</span>
-        <h1 className="text-3xl sm:text-4xl font-serif font-bold text-text tracking-tight">Admin Dashboard</h1>
-        <p className="text-text-secondary mt-1">Manage your business, services, appointments, staff, and users</p>
+        <div className="flex items-center gap-2 mb-3">
+          <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ backgroundColor: primaryColor }}>
+            <svg className="w-3.5 h-3.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>
+          </div>
+          <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: primaryColor }}>Administration</span>
+        </div>
+        <h1 className="text-3xl sm:text-4xl font-serif font-bold text-text tracking-tight">Dashboard</h1>
+        <p className="text-text-secondary mt-1">Your business story — from services to revenue</p>
       </div>
 
-      {/* Stats Cards */}
+      {/* Bento-grid Stats Cards */}
       {!loadingStats && (
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-8">
-          <div className="bg-white rounded-xl border border-border p-5 shadow-sm hover:shadow-md transition-all cursor-pointer" onClick={() => setTab('settings')}>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg"
-                style={{ backgroundColor: `${settings?.primary_color || '#e11d48'}15` }}>⚙️</div>
-              <div>
-                <p className="text-lg font-bold text-text">{settings?.business_name || 'My Business'}</p>
-                <p className="text-xs text-text-muted truncate">{settings?.business_type || 'salon'}</p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-8">
+          {[
+            { tab: 'settings', label: 'Business', icon: 'settings', value: settings?.business_name || 'My Business', sub: settings?.business_type || 'salon', small: true },
+            { tab: 'staff', label: 'Team', icon: 'people', value: stats.staff, sub: 'Staff members' },
+            { tab: 'services', label: 'Services', icon: 'services', value: stats.services, sub: 'Active services' },
+            { tab: 'appointments', label: 'Production', icon: 'calendar', value: stats.appointments, sub: 'Appointments' },
+            { tab: 'coupons', label: 'Promotions', icon: 'coupon', value: stats.coupons, sub: 'Active coupons' },
+            { tab: 'analytics', label: 'Revenue', icon: 'dollar', value: `$${stats.revenue > 0 ? parseFloat(stats.revenue).toLocaleString(undefined, { minimumFractionDigits: 0 }) : '0'}`, sub: stats.customers > 0 ? `${stats.customers} customers` : 'Total revenue' },
+          ].map(card => (
+            <div key={card.tab} role="button" tabIndex={0}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { setTab(card.tab); } }}
+              onClick={() => setTab(card.tab)}
+              className="bg-white rounded-xl border border-border p-4 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50 flex flex-col">
+              <div className="flex items-center gap-2.5 mb-2">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: accentBg() }}>
+                  <Icon name={card.icon} className="w-4 h-4" style={{ color: primaryColor }} />
+                </div>
+                <span className="text-xs text-text-muted">{card.label}</span>
               </div>
+              <p className={`font-bold text-text mt-auto ${card.small ? 'text-sm' : 'text-2xl'}`}>{card.value}</p>
+              <p className="text-xs text-text-muted">{card.sub}</p>
             </div>
-          </div>
-          <div className="bg-white rounded-xl border border-border p-5 shadow-sm hover:shadow-md transition-all cursor-pointer" onClick={() => setTab('staff')}>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg" style={{ backgroundColor: `${settings?.primary_color || '#6366f1'}15` }}>👥</div>
-              <div>
-                <p className="text-2xl font-bold text-text">{stats.staff}</p>
-                <p className="text-xs text-text-muted">Staff</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl border border-border p-5 shadow-sm hover:shadow-md transition-all cursor-pointer" onClick={() => setTab('services')}>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-primary-bg rounded-xl flex items-center justify-center text-lg">📋</div>
-              <div>
-                <p className="text-2xl font-bold text-text">{stats.services}</p>
-                <p className="text-xs text-text-muted">Services</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl border border-border p-5 shadow-sm hover:shadow-md transition-all cursor-pointer" onClick={() => setTab('appointments')}>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-success-bg rounded-xl flex items-center justify-center text-lg">📅</div>
-              <div>
-                <p className="text-2xl font-bold text-text">{stats.appointments}</p>
-                <p className="text-xs text-text-muted">Appointments</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl border border-border p-5 shadow-sm hover:shadow-md transition-all cursor-pointer" onClick={() => setTab('coupons')}>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center text-lg">🏷️</div>
-              <div>
-                <p className="text-2xl font-bold text-text">{stats.coupons}</p>
-                <p className="text-xs text-text-muted">Coupons</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl border border-border p-5 shadow-sm hover:shadow-md transition-all cursor-pointer" onClick={() => setTab('analytics')}>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-lg">📊</div>
-              <div>
-                <p className="text-2xl font-bold text-text">${stats.revenue > 0 ? parseFloat(stats.revenue).toLocaleString(undefined, { minimumFractionDigits: 0 }) : 0}</p>
-                <p className="text-xs text-text-muted">Revenue</p>
-                {stats.customers > 0 && <p className="text-[10px] text-text-muted">{stats.customers} customers</p>}
-              </div>
-            </div>
-          </div>
+          ))}
         </div>
       )}
 
-      {/* Tab Navigation */}
-      <div className="flex items-center gap-2 mb-6 bg-white rounded-2xl border border-border p-1.5 shadow-sm">
+      {/* Tab Navigation — cleaner, SVG icons */}
+      <div className="flex items-center gap-1 mb-6 bg-white rounded-2xl border border-border p-1 shadow-sm overflow-x-auto">
         {tabs.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-medium transition-all duration-200 ${
-              tab === t.id ? 'text-white shadow-sm' : 'text-text-secondary hover:text-text hover:bg-surface-alt'
+            className={`flex items-center gap-1.5 py-2 px-3 rounded-xl text-xs font-medium whitespace-nowrap transition-all duration-200 ${
+              tab === t.id
+                ? 'text-white shadow-sm'
+                : 'text-text-secondary hover:text-text hover:bg-surface-alt'
             }`}
-            style={tab === t.id ? { backgroundColor: settings?.primary_color || '#e11d48' } : {}}>
-            <span className="mr-1.5">{t.icon}</span>
+            style={tab === t.id ? { backgroundColor: primaryColor } : {}}>
+            <Icon name={t.icon} className="w-3.5 h-3.5" />
             {t.label}
           </button>
         ))}
@@ -1452,6 +1702,7 @@ export default function AdminDashboard() {
 
       {/* Tab Content */}
       <div className="bg-white rounded-2xl border border-border p-6 shadow-sm">
+        {tab === 'story' && <StoryTab />}
         {tab === 'settings' && <SettingsTab />}
         {tab === 'staff' && <StaffTab />}
         {tab === 'services' && <ServicesTab />}

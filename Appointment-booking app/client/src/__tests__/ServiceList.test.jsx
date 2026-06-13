@@ -44,8 +44,10 @@ describe('ServiceList', () => {
 
   it('renders loading state initially', () => {
     global.fetch.mockImplementation(() => new Promise(() => {}));
-    render(<Wrapper><ServiceList /></Wrapper>);
-    expect(screen.getByText(/loading services/i)).toBeInTheDocument();
+    const { container } = render(<Wrapper><ServiceList /></Wrapper>);
+    // Loading state renders skeleton elements (no text, just animated placeholders)
+    const skeletons = container.querySelectorAll('.animate-pulse');
+    expect(skeletons.length).toBeGreaterThan(0);
   });
 
   it('renders services after loading', async () => {

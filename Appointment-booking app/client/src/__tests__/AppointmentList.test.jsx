@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AuthProvider } from '../context/AuthContext';
 import { ThemeProvider } from '../context/ThemeContext';
+import { ToastProvider } from '../context/ToastContext';
 import AppointmentList from '../components/AppointmentList';
 
 // Mock appointment data
@@ -35,11 +36,13 @@ localStorage.setItem('user', JSON.stringify(mockUser));
 
 function Wrapper({ children }) {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        {children}
-      </AuthProvider>
-    </ThemeProvider>
+    <ToastProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          {children}
+        </AuthProvider>
+      </ThemeProvider>
+    </ToastProvider>
   );
 }
 
@@ -162,13 +165,15 @@ describe('AppointmentList', () => {
     // Make fetch slow
     global.fetch.mockImplementation(() => new Promise(() => {}));
 
-    render(
+    const { container } = render(
       <Wrapper>
         <AppointmentList />
       </Wrapper>
     );
 
-    expect(screen.getByText(/loading appointments/i)).toBeInTheDocument();
+    // Loading state renders skeleton cards (animated placeholders, no text)
+    const skeletons = container.querySelectorAll('.animate-pulse');
+    expect(skeletons.length).toBeGreaterThan(0);
   });
 
   it('shows empty state when no appointments', async () => {

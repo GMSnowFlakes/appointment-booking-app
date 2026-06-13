@@ -175,6 +175,14 @@ app.use('/api/notifications', notificationsExtendedRoutes);
 // Admin extended (security, audit, API keys, roles, integrations)
 app.use('/api/admin-extended', adminExtendedRoutes);
 
+// CSV export (admin-only)
+const exportRoutes = require('./routes/export');
+app.use('/api/export', exportRoutes);
+
+// CSV import (admin-only)
+const importRoutes = require('./routes/import');
+app.use('/api/import', importRoutes);
+
 // Multi-tenancy
 app.use('/api/tenants', tenantsRoutes);
 
