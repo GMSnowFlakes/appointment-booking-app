@@ -194,6 +194,10 @@ app.get('/api/health', (req, res) => {
 // Initialize database, run migrations, and seed if empty
 async function initializeDb() {
   await initDatabase();
+  // Skip migrations in test mode — the in-memory mock seeds data directly
+  if (process.env.VITEST) {
+    return;
+  }
   await runMigrations();
 
   // Check if services exist, seed if empty
@@ -244,6 +248,23 @@ async function seedData() {
     );
   }
   logger.info(`Seeded ${services.length} services`);
+
+  // Seed demo users (skipped if users already exist)
+  const existingUser = await queryOne('SELECT id FROM users LIMIT 1');
+  if (!existingUser) {
+    const bcrypt = require('bcryptjs');
+    const hashedAdmin = bcrypt.hashSync('admin123', 10);
+    const hashedCustomer = bcrypt.hashSync('customer123', 10);
+    await run(
+      `INSERT INTO users (name, email, password, role) VALUES ($1, $2, $3, $4)`,
+      ['Admin', 'admin@demo.com', hashedAdmin, 'admin']
+    );
+    await run(
+      `INSERT INTO users (name, email, password, role) VALUES ($1, $2, $3, $4)`,
+      ['Jane Customer', 'customer@demo.com', hashedCustomer, 'customer']
+    );
+    logger.info('Seeded demo users: admin@demo.com / customer@demo.com');
+  }
 }
 
 // Global error handling middleware

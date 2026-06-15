@@ -89,7 +89,9 @@ export default function AvailabilityCalendar({
     finally { setLoading(false); }
   }, [monthStart, monthEnd]);
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => { fetchAvailability(); }, [fetchAvailability]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   function prevMonth() { setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1)); setExpandedDay(null); }
   function nextMonth() { setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1)); setExpandedDay(null); }

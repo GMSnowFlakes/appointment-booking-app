@@ -9,22 +9,14 @@
  * and that notifications don't break the booking/cancel/reschedule flow.
  */
 
+// Note: This test suite uses db-mock.js (in-memory SQL mock).
+// See __tests__/db-mock-aggregation.test.js → "Known mock limitations"
+// for a list of unsupported SQL patterns.
+
 const request = require('supertest');
-const { makeTestSchema, seedTestData, authHeader } = require('./helpers');
-
-const testSchema = makeTestSchema();
-process.env.PG_SCHEMA = testSchema;
-process.env.JWT_SECRET = 'test-secret-key';
-delete process.env.RESEND_API_KEY;
-
-// Clear module cache to pick up env changes
-delete require.cache[require.resolve('../db')];
-delete require.cache[require.resolve('../email')];
-delete require.cache[require.resolve('../index')];
-
+const { seedTestData, authHeader } = require('./helpers');
 const { app, initializeDb } = require('../index');
 const emailModule = require('../email');
-const { dropSchema, closePool } = require('../db');
 
 // ─── Helpers ────────────────────────────────────
 
@@ -71,7 +63,7 @@ let customerToken;
 
 beforeAll(async () => {
   await initializeDb();
-  await seedTestData();
+  // seedTestData() not needed — initializeDb() already seeds mock data
 
   const login = await request(app)
     .post('/api/auth/login')
@@ -80,8 +72,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await dropSchema(testSchema);
-  await closePool();
+  // No-op: mock cleanup is automatic
 });
 
 // ─── Tests ──────────────────────────────────────

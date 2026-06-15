@@ -1,22 +1,16 @@
+// Note: This test suite uses db-mock.js (in-memory SQL mock).
+// See __tests__/db-mock-aggregation.test.js → "Known mock limitations"
+// for a list of unsupported SQL patterns.
+
 const request = require('supertest');
-const { makeTestSchema } = require('./helpers');
-
-const testSchema = makeTestSchema();
-process.env.PG_SCHEMA = testSchema;
-process.env.JWT_SECRET = 'test-secret-key';
-
-// Clear db cache and import the app
-delete require.cache[require.resolve('../db')];
 const { app, initializeDb } = require('../index');
-const { dropSchema, closePool } = require('../db');
 
 beforeAll(async () => {
   await initializeDb();
 });
 
 afterAll(async () => {
-  await dropSchema(testSchema);
-  await closePool();
+  // No-op: mock cleanup is automatic
 });
 
 describe('Auth API', () => {

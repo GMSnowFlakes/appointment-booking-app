@@ -5,9 +5,9 @@ module.exports = defineConfig({
     globals: true,
     environment: 'node',
     include: ['__tests__/**/*.test.js'],
-    testTimeout: 20000,
-    hookTimeout: 20000,
-    // Run test files sequentially — each creates/drops its own Postgres schema
+    setupFiles: ['./vitest.setup.mjs'],
+    testTimeout: 10000,
+    hookTimeout: 10000,
     sequence: {
       concurrent: false,
     },

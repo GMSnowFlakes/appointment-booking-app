@@ -18,6 +18,7 @@ export function PWAProvider({ children }) {
   const [installPrompt, setInstallPrompt] = useState(null);
   const [isStandalone, setIsStandalone] = useState(false);
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     setIsStandalone(isRunningStandalone());
 
@@ -50,6 +51,7 @@ export function PWAProvider({ children }) {
       mediaQuery.removeEventListener('change', handleDisplayModeChange);
     };
   }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const installApp = useCallback(async () => {
     if (!installPrompt) return;

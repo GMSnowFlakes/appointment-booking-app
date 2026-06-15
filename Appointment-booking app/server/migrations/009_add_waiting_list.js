@@ -23,8 +23,8 @@ module.exports = async ({ run }) => {
     )
   `);
 
-  -- Index for efficient lookup when a slot opens up
   await run(`
+    -- Index for efficient lookup when a slot opens up
     CREATE INDEX IF NOT EXISTS idx_waiting_list_status
       ON waiting_list(status, service_id, staff_id)
   `);

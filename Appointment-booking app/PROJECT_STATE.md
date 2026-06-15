@@ -345,6 +345,7 @@ Appointment-booking app/
 12. **Internationalization (i18n)** — Multi-language support
 
 ### Completed Technical Debt
+- ✅ **In-Memory SQL Mock (db-mock.js)** — Replaces PostgreSQL in unit tests for fast, isolated server testing. Handles all SQL patterns used by route handlers (SELECT, INSERT, UPDATE, DELETE, JOIN, WHERE with AND/OR/IN/ILIKE/IS NULL, ORDER BY, LIMIT/OFFSET, COUNT, SUM, COALESCE, DISTINCT, ON CONFLICT with explicit targets, `::type` casts, NOW()). See [Known Limitations](#known-mock-limitations) below.
 - ✅ **Database Migrations** — Migration system with checksum-based tamper detection
 - ✅ **Error Standardization** — Consistent error response format via `ApiError` class + `ErrorCodes` enum
 - ✅ **Logging** — Structured logging via Pino (pretty-printed in dev, JSON in prod, file + console)
@@ -355,6 +356,143 @@ Appointment-booking app/
 - ✅ **PostgreSQL Migration** — Switched from SQLite (sql.js) to PostgreSQL (pg) with connection pooling
 - ✅ **E2E Test Infrastructure (PostgreSQL)** — Updated `seed-admin.cjs` from SQLite to PostgreSQL-compatible async API (`queryOne`, `$1` params). Playwright config uses unique `PG_SCHEMA` per run for test isolation with explicit `DATABASE_URL`. Removed all SQLite relics (`DB_PATH`, `.exec()`, file-based DB paths).
 - ✅ **One-click Deploy** — Railway-ready via `nixpacks.toml` + `docker-compose.yml` for local Postgres
+
+---
+
+## 🧪 Test Infrastructure
+
+### Server Unit Tests (Vitest + supertest)
+
+The server uses an **in-memory SQL mock** (`server/db-mock.js`) instead of real PostgreSQL for unit tests. This makes tests fast (~4s for 100+ tests), isolated (no database setup needed), and deterministic (no shared state between test runs).
+
+The mock intercepts calls to `db.queryAll()`, `db.queryOne()`, and `db.run()` and executes SQL against in-memory JavaScript arrays rather than PostgreSQL.
+
+### Known Mock Limitations
+
+Several PostgreSQL features are **not supported** by the mock. If a route handler's SQL uses these patterns, the mock will silently produce wrong results or throw errors. When writing new route handler tests, avoid relying on these patterns or add a direct unit test documenting the expected behavior difference.
+
+| Pattern | Failure Mode | Used By Routes |
+|---|---|---|
+| `NULLS FIRST` / `NULLS LAST` in `ORDER BY` | Silently ignored | Booking rules |
+| `ON CONFLICT DO NOTHING` without explicit target `(col)` | Cannot infer unique constraints — insert proceeds, creating duplicates | iCal tokens, integration settings, IP whitelist, customer tags, staff services |
+| `GREATEST()` / `LEAST()` functions | Returns the raw SQL string as a value instead of evaluating it | Coupon decrement, loyalty points |
+| `UNION` / `UNION ALL` | Enters `SELECT` handler and produces incorrect results through partial parsing | Booking rules |
+| `DATE()` / `DATE_TRUNC()` / `INTERVAL` expressions | Return `undefined` instead of a date value | Walk-in tokens, analytics |
+| `GROUP BY` with aggregation | Produces all rows without grouping | Analytics dashboard |
+| `FROM (SELECT ...) AS sub` subquery | Not handled — produces empty or incorrect results | — |
+
+Full details with `test.todo` entries: `server/__tests__/db-mock-aggregation.test.js → "Known mock limitations"`
+
+Source-level documentation: `server/db-mock.js` header comment
+
+### Test Coverage Areas
+
+#### Server Unit Tests (`server/__tests__/`) — 8 test files, ~113 tests
+
+| File | Tests | Coverage |
+|------|-------|----------|
+| `auth.test.js` | ~14 | Registration, login, JWT issuance, duplicate email rejection, password hashing, token edge cases |
+| `services.test.js` | ~11 | List services, get by ID, search, category filter, active/inactive filtering, error handling |
+| `appointments.test.js` | ~28 | Booking creation, conflict detection, cancellation, rescheduling, pagination, date filtering, authorization guards |
+| `admin.test.js` | ~20 | Service CRUD, appointment management (status changes), user management (role changes, deletion), business settings |
+| `notifications.test.js` | ~11 | Notification preferences (GET/PUT), email sending (booking confirm, cancel, reschedule, reminder, admin notifications) |
+| `db-mock-aggregation.test.js` | ~29 | Direct mock tests: COUNT, SUM, COALESCE, DISTINCT, type-cast aliases, BETWEEN, LEFT JOIN, multiple aggregations, corner cases |
+
+**How they work:** All server unit tests use the in-memory SQL mock (`db-mock.js`) — no PostgreSQL required. Fast (~4s for all 113 tests).
+
+#### Client Unit Tests (`client/src/__tests__/`) — 7 test files, ~63 tests
+
+| File | Tests | Coverage |
+|------|-------|----------|
+| `AppointmentList.test.jsx` | ~14 | Loading/empty/error states, appointment cards, filter tabs, pagination, cancel dialog, reschedule modal |
+| `AuthForm.test.jsx` | ~12 | Login/register forms, validation, loading state, error display, mode toggle |
+| `ServiceList.test.jsx` | ~12 | Service cards, category grouping, search/filter, loading/error/empty states |
+| `ConfirmDialog.test.jsx` | ~10 | Open/close, confirm/cancel actions, danger/warning/primary variants, ESC close, focus management |
+| `ImportCsvModal.test.jsx` | ~6 | File upload, import flow, results display, error handling, template download |
+| `useLoadingState.test.jsx` | ~3 | Hook tests: loading state transitions, concurrent requests |
+
+**How they work:** Vitest with `jsdom` environment. Components render in a simulated browser DOM. API calls are mocked.
+
+#### E2E Tests (`client/e2e/`) — 3 spec files, Playwright
+
+| File | Coverage |
+|------|----------|
+| `auth.spec.js` | Login, registration, logout, session persistence, form validation, error display |
+| `booking.spec.js` | Service selection, date/time picking, booking creation, appointments list, cancellation |
+| `admin.spec.js` | Dashboard stats, service management (create/edit/deactivate), user management, appointment status changes |
+
+**How they work:** Playwright launches Chromium, auto-starts the API + Vite dev servers, and uses a unique PostgreSQL schema per run for isolation. See [`API test patterns`](#api-test-patterns) below.
+
+---
+
+### Workspace Commands (Run Everything from Root)
+
+The root of `Appointment-booking app/` has a `package.json` with scripts that run both server and client tests via `npm --prefix`:
+
+| Command | Where | What It Runs |
+|---------|-------|-------------|
+| `npm test` | root | Server tests, then client tests (sequential) |
+| `npm run test:parallel` | root | Server + client tests concurrently |
+| `npm run test:server` | root | Server tests only |
+| `npm run test:client` | root | Client tests only |
+| `npm run test:watch` | root | Server + client in watch mode (concurrently) |
+| `npm run test:coverage` | root | Server tests with coverage
+
+```bash
+cd "Appointment-booking app"
+npm test                    # 176+ tests in ~9s
+npm run test:parallel       # Same tests, ~5s (parallel)
+npm run test:server         # Just server (113+ tests)
+npm run test:client         # Just client (63 tests)
+npm run test:watch          # Watch mode
+```
+
+### Running Specific Test Categories
+
+| Command | Where | What It Runs |
+|---------|-------|-------------|
+| `npm test` | `server/` | All server unit tests (Vitest) |
+| `npm test` | `client/` | All client unit tests (Vitest) |
+| `npm run e2e` | `client/` | E2E tests (Playwright, headless) |
+| `npm run e2e:headed` | `client/` | E2E tests (Playwright, visible browser) |
+| `npx vitest run __tests__/auth.test.js` | `server/` | Single server test file |
+| `npx vitest run src/__tests__/AuthForm.test.jsx` | `client/` | Single client test file |
+| `npx vitest --watch` | `server/` or `client/` | Watch mode — re-runs on file changes |
+| `npx vitest run --reporter=verbose` | `server/` or `client/` | Verbose output showing each test name |
+| `npx vitest run --coverage` | `server/` | Run with coverage report (saved to `coverage/`) |
+| `npx playwright test --config e2e/playwright.config.js --grep "login"` | `client/` | Run E2E tests matching a pattern |
+
+#### From the project root (one-command):
+
+```bash
+./start-test.sh                          # All server + client unit tests
+./start-test.sh --file auth.test.js      # Single file
+./start-test.sh --watch                  # Watch mode
+./start-test.sh --coverage               # With coverage
+```
+
+The one-command runner starts Docker Postgres (if needed), installs deps, and runs the selected test suite.
+
+### API Test Patterns
+
+Server route tests use `supertest` to make HTTP requests against the Express app. The test setup (`vitest.setup.js`) replaces `db.js` with `db-mock.js` before each test file, ensuring test isolation.
+
+```js
+// Typical server test structure
+import request from 'supertest';
+
+describe('GET /api/services', () => {
+  it('should list active services', async () => {
+    const res = await request(app).get('/api/services');
+    expect(res.status).toBe(200);
+    expect(res.body.services).toBeDefined();
+  });
+});
+```
+
+Client component tests use `@testing-library/react` with mocked `fetch` calls. The AuthContext is wrapped in a test provider that supplies a fake user and `fetchWithAuth`.
+
+E2E tests use Playwright to interact with the UI like a real user. The `seed-admin.cjs` script creates a test admin account, and tests run against a temporary PostgreSQL schema.
 
 ---
 

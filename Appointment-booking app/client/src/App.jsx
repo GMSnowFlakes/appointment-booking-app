@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { AuthProvider, useAuth } from './context/AuthContext';
+import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { PWAProvider } from './context/PWAContext';
 import { ToastProvider } from './context/ToastContext';
@@ -68,10 +68,10 @@ function PageTransition({ page, children }) {
 // ─── App Content ───────────────────────────────
 
 function AppContent() {
-  const { user } = useAuth();
   const [page, setPage] = useState('services');
   const [authMode, setAuthMode] = useState('login');
   const [refreshAppointments, setRefreshAppointments] = useState(0);
+  const [checkoutAppointment, setCheckoutAppointment] = useState(null);
 
   function handleNavigate(p) {
     if (p === 'login' || p === 'register') {
@@ -84,21 +84,26 @@ function AppContent() {
 
   function handleAuthSuccess() { setPage('services'); }
 
-  function handleBookingSuccess() {
+  function handleBookingSuccess(appointment) {
     setRefreshAppointments(prev => prev + 1);
-    setTimeout(() => setPage('appointments'), 1500);
+    if (appointment) {
+      setCheckoutAppointment(appointment);
+      setPage('checkout');
+    } else {
+      setTimeout(() => setPage('appointments'), 1500);
+    }
   }
 
   function renderPage() {
     switch (page) {
       case 'auth': return <AuthForm key={authMode} mode={authMode} onSuccess={handleAuthSuccess} onToggle={() => setAuthMode(authMode === 'login' ? 'register' : 'login')} />;
-      case 'book': return <BookingForm key={refreshAppointments} onBooked={handleBookingSuccess} />;
+      case 'book': return <BookingForm key={refreshAppointments} onBooked={handleBookingSuccess} onCheckout={(apt) => { setCheckoutAppointment(apt); setPage('checkout'); }} />;
       case 'appointments': return <AppointmentList key={refreshAppointments} />;
       case 'notifications': return <NotificationPreferences />;
       case 'admin': return <AdminDashboard />;
       case 'profile': return <ProfilePage />;
       case 'waiting-list': return <WaitingListManager key={refreshAppointments} />;
-      case 'checkout': return <CheckoutForm appointment={null} onSuccess={() => setPage('appointments')} onCancel={() => setPage('book')} />;  // appointment will be set by BookingForm
+      case 'checkout': return <CheckoutForm appointment={checkoutAppointment} onSuccess={() => { setCheckoutAppointment(null); setPage('appointments'); }} onCancel={() => { setCheckoutAppointment(null); setPage('book'); }} />;
       case 'services':
       default: return <ServiceList />;
     }

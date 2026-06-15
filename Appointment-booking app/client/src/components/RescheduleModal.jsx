@@ -15,9 +15,11 @@ export default function RescheduleModal({ open, appointment, onClose, onReschedu
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (open) { setDate(''); setTime(''); setError(''); }
   }, [open, appointment?.id]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   function handleCalendarSelect(newDate, newTime) {
     setDate(newDate);

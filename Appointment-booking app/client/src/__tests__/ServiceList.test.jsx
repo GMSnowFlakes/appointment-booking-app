@@ -44,9 +44,9 @@ describe('ServiceList', () => {
 
   it('renders loading state initially', () => {
     global.fetch.mockImplementation(() => new Promise(() => {}));
-    const { container } = render(<Wrapper><ServiceList /></Wrapper>);
-    // Loading state renders skeleton elements (no text, just animated placeholders)
-    const skeletons = container.querySelectorAll('.animate-pulse');
+    render(<Wrapper><ServiceList /></Wrapper>);
+    // Loading state renders skeleton cards with loading text indicators
+    const skeletons = screen.getAllByRole('status', { name: /loading service card/i });
     expect(skeletons.length).toBeGreaterThan(0);
   });
 
@@ -79,7 +79,7 @@ describe('ServiceList', () => {
   it('shows the category filter dropdown', async () => {
     render(<Wrapper><ServiceList /></Wrapper>);
     await waitFor(() => {
-      expect(screen.getByText('All Categories')).toBeInTheDocument();
+      expect(screen.getByText('All')).toBeInTheDocument();
     });
   });
 
@@ -109,7 +109,7 @@ describe('ServiceList', () => {
 
     render(<Wrapper><ServiceList /></Wrapper>);
     await waitFor(() => {
-      expect(screen.getByText(/no services available/i)).toBeInTheDocument();
+      expect(screen.getByText('No services yet')).toBeInTheDocument();
     });
   });
 

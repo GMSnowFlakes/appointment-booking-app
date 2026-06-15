@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AuthProvider } from '../context/AuthContext';
 import { ThemeProvider } from '../context/ThemeContext';
 import { ToastProvider } from '../context/ToastContext';
+import { BusinessProvider } from '../context/BusinessContext';
 import AppointmentList from '../components/AppointmentList';
 
 // Mock appointment data
@@ -38,9 +39,11 @@ function Wrapper({ children }) {
   return (
     <ToastProvider>
       <ThemeProvider>
-        <AuthProvider>
-          {children}
-        </AuthProvider>
+        <BusinessProvider>
+          <AuthProvider>
+            {children}
+          </AuthProvider>
+        </BusinessProvider>
       </ThemeProvider>
     </ToastProvider>
   );
@@ -52,7 +55,7 @@ describe('AppointmentList', () => {
     global.fetch.mockReset();
 
     // Default mock - return appointments
-    global.fetch.mockImplementation((url, options) => {
+    global.fetch.mockImplementation((url) => {
       const urlStr = typeof url === 'string' ? url : url?.url || '';
 
       // Auth calls
@@ -165,14 +168,14 @@ describe('AppointmentList', () => {
     // Make fetch slow
     global.fetch.mockImplementation(() => new Promise(() => {}));
 
-    const { container } = render(
+    render(
       <Wrapper>
         <AppointmentList />
       </Wrapper>
     );
 
-    // Loading state renders skeleton cards (animated placeholders, no text)
-    const skeletons = container.querySelectorAll('.animate-pulse');
+    // Loading state renders skeleton cards with loading text indicators
+    const skeletons = screen.getAllByRole('status', { name: /loading appointment card/i });
     expect(skeletons.length).toBeGreaterThan(0);
   });
 

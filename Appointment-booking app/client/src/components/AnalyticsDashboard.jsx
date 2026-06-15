@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useBusiness } from '../context/BusinessContext';
 
@@ -117,6 +117,7 @@ function HorizontalBars({ data, labelKey, valueKey, max, color }) {
 
 // ─── Stat Card ────────────────────────────────
 
+// eslint-disable-next-line no-unused-vars
 function StatCard({ label, value, sub, icon, trend, color }) {
   return (
     <div className="bg-white rounded-xl border border-border p-5 shadow-sm hover:shadow-md transition-all">

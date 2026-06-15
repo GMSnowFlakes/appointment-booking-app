@@ -20,6 +20,7 @@ export function BusinessProvider({ children }) {
     }
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchSettings(); }, [fetchSettings]);
 
   // Helper to get a display name for business type

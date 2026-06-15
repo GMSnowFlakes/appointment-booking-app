@@ -101,46 +101,58 @@ if [ ! -f "server/.env" ]; then
 fi
 
 # ─── Install deps ─────────────────────────────────
+info "Installing dependencies..."
+
 cd server
-info "Installing server dependencies..."
 if ! npm install --loglevel=warn; then
-  err "npm install failed"
+  err "npm install failed in server/"
   exit 1
 fi
+ok "Server dependencies installed"
+
+cd "$SCRIPT_DIR/client"
+if ! npm install --loglevel=warn; then
+  err "npm install failed in client/"
+  exit 1
+fi
+ok "Client dependencies installed"
+
+cd "$SCRIPT_DIR"
 
 # ─── Build test command ──────────────────────────
-TEST_CMD="npx vitest run"
-
-if [ "$WATCH" = true ]; then
-  TEST_CMD="npx vitest"
-fi
-
-if [ "$COVERAGE" = true ]; then
-  TEST_CMD="$TEST_CMD --coverage"
-fi
+# Default: run both server and client from root via npm --prefix
+# --file flag runs single server test file only
 
 if [ -n "$FILE_FILTER" ]; then
-  TEST_CMD="$TEST_CMD __tests__/$FILE_FILTER"
+  # Single-file mode: run just the server test file
+  cd server
+  TEST_CMD="npx vitest run __tests__/$FILE_FILTER"
+  TEST_LABEL="Server file: $FILE_FILTER"
+else
+  # Workspace mode: run all tests from root
+  if [ "$WATCH" = true ]; then
+    TEST_CMD="npx concurrently -g \"npm run test:watch --prefix server\" \"npm run test:watch --prefix client\""
+    TEST_LABEL="Server + Client (watch mode)"
+  elif [ "$COVERAGE" = true ]; then
+    TEST_CMD="npm test --prefix server -- --coverage"
+    TEST_LABEL="Server coverage"
+  else
+    TEST_CMD="npm test"
+    TEST_LABEL="Server + Client"
+  fi
 fi
 
 # ─── Run tests ───────────────────────────────────
 echo ""
 info "======================================"
-info " Running tests..."
+info " $TEST_LABEL"
 info "======================================"
 echo ""
 
-if [ "$WATCH" = false ]; then
-  # Capture exit code manually for summary
-  set +e
-fi
-
+set +e
 eval "$TEST_CMD"
 EXIT_CODE=$?
-
-if [ "$WATCH" = false ]; then
-  set -e
-fi
+set -e
 
 # ─── Summary ─────────────────────────────────────
 echo ""

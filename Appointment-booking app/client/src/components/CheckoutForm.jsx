@@ -1,22 +1,109 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
+const PAYPAL_CLIENT_ID = import.meta.env.VITE_PAYPAL_CLIENT_ID || '';
+
 export default function CheckoutForm({ appointment, onSuccess, onCancel }) {
-  const { fetchWithAuth, user } = useAuth();
+  const { fetchWithAuth } = useAuth();
   const toast = useToast();
-  const [loading, setLoading] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState('stripe');
+  const [paymentMethod, setPaymentMethod] = useState('paypal');
   const [couponCode, setCouponCode] = useState('');
   const [coupon, setCoupon] = useState(null);
   const [couponLoading, setCouponLoading] = useState(false);
   const [paymentStep, setPaymentStep] = useState('review'); // review, processing, success
+  const [paypalReady, setPaypalReady] = useState(false);
+  const paypalBtnRef = useRef(null);
+  const paypalRenderedRef = useRef(false);
+  const couponRef = useRef(null);
+
+  // Keep couponRef in sync with coupon state
+  useEffect(() => { couponRef.current = coupon; }, [coupon]);
 
   const servicePrice = appointment?.price || 0;
   const depositRequired = appointment?.deposit_required || 0;
   const amountDue = depositRequired > 0 ? depositRequired : servicePrice;
   const discountCents = coupon?.discount_cents || 0;
   const finalAmount = Math.max(0, amountDue * 100 - discountCents);
+
+  // ─── Load PayPal SDK when PayPal method is selected ─────
+  useEffect(() => {
+    if (paymentMethod !== 'paypal' || !PAYPAL_CLIENT_ID) return;
+    /* eslint-disable-next-line react-hooks/set-state-in-effect */
+    if (window.paypal) { setPaypalReady(true); return; }
+
+    const script = document.createElement('script');
+    script.src = `https://www.paypal.com/sdk/js?client-id=${PAYPAL_CLIENT_ID}&currency=USD&intent=capture`;
+    script.async = true;
+    script.onload = () => setPaypalReady(true);
+    script.onerror = () => toast.error('Failed to load PayPal SDK');
+    document.body.appendChild(script);
+
+    return () => { /* keep script loaded once loaded */ };
+  }, [paymentMethod]);
+
+  // ─── Render PayPal buttons ─────────────────────────────
+  useEffect(() => {
+    if (!paypalReady || !paypalBtnRef.current || paypalRenderedRef.current) return;
+    if (!window.paypal) return;
+
+    paypalRenderedRef.current = true;
+
+    window.paypal.Buttons({
+      createOrder: async () => {
+        const res = await fetchWithAuth('/api/payments/create-intent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ appointment_id: appointment.id, payment_method: 'paypal' }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to create order');
+        return data.paypalOrderId;
+      },
+      onApprove: async (data) => {
+        const currentCoupon = couponRef.current;
+        setPaymentStep('processing');
+        try {
+          // Apply coupon first if entered (reads ref for latest value)
+          if (currentCoupon && !currentCoupon.applied) {
+            await fetchWithAuth('/api/coupons/apply', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ code: currentCoupon.coupon.code, appointment_id: appointment.id }),
+            });
+          }
+
+          // Confirm & capture server-side
+          const confirmRes = await fetchWithAuth('/api/payments/confirm', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              appointment_id: appointment.id,
+              payment_method: 'paypal',
+              payment_id: data.orderID,
+              status: 'succeeded',
+            }),
+          });
+          const confirmData = await confirmRes.json();
+          if (!confirmRes.ok) throw new Error(confirmData.error || 'Payment confirmation failed');
+
+          toast.success('Payment successful!');
+          setPaymentStep('success');
+          onSuccess?.();
+        } catch (err) {
+          toast.error(err.message);
+          setPaymentStep('review');
+        }
+      },
+      onError: (err) => {
+        toast.error(err.message || 'PayPal payment failed');
+        setPaymentStep('review');
+      },
+    }).render(paypalBtnRef.current);
+
+    // Reset render flag on unmount so buttons re-render if component remounts
+    return () => { paypalRenderedRef.current = false; };
+  }, [paypalReady]);
 
   async function handleApplyCoupon() {
     if (!couponCode.trim()) return;
@@ -39,62 +126,6 @@ export default function CheckoutForm({ appointment, onSuccess, onCancel }) {
       toast.error(err.message);
     }
     setCouponLoading(false);
-  }
-
-  async function handlePay() {
-    setLoading(true);
-    setPaymentStep('processing');
-    try {
-      // Apply coupon first if entered
-      if (coupon && !coupon.applied) {
-        await fetchWithAuth('/api/coupons/apply', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code: coupon.coupon.code, appointment_id: appointment.id }),
-        });
-      }
-
-      // Create payment intent
-      const intentRes = await fetchWithAuth('/api/payments/create-intent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ appointment_id: appointment.id, payment_method: paymentMethod }),
-      });
-      const intentData = await intentRes.json();
-
-      if (!intentRes.ok) {
-        throw new Error(intentData.error || 'Payment failed');
-      }
-
-      // For Stripe, integrate with Stripe Elements here
-      // For now, simulate success (in production use Stripe.js)
-      if (paymentMethod === 'stripe' && window.Stripe) {
-        // Stripe.js integration would go here
-        const stripe = window.Stripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '');
-        const { error } = await stripe.confirmCardPayment(intentData.clientSecret);
-        if (error) throw new Error(error.message);
-      } else {
-        // Simulate payment confirmation
-        await fetchWithAuth('/api/payments/confirm', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            appointment_id: appointment.id,
-            payment_method: paymentMethod,
-            payment_id: `pay_${Date.now()}`,
-            status: 'succeeded',
-          }),
-        });
-      }
-
-      toast.success('Payment successful!');
-      setPaymentStep('success');
-      onSuccess?.();
-    } catch (err) {
-      toast.error(err.message);
-      setPaymentStep('review');
-    }
-    setLoading(false);
   }
 
   if (paymentStep === 'success') {
@@ -179,16 +210,6 @@ export default function CheckoutForm({ appointment, onSuccess, onCancel }) {
       {/* Payment Method */}
       <div className="flex gap-2">
         <button
-          onClick={() => setPaymentMethod('stripe')}
-          className={`flex-1 py-2.5 rounded-xl text-sm font-medium border transition-all ${
-            paymentMethod === 'stripe'
-              ? 'bg-primary text-white border-primary'
-              : 'bg-white text-text-secondary border-border hover:border-primary'
-          }`}
-        >
-          💳 Card (Stripe)
-        </button>
-        <button
           onClick={() => setPaymentMethod('paypal')}
           className={`flex-1 py-2.5 rounded-xl text-sm font-medium border transition-all ${
             paymentMethod === 'paypal'
@@ -200,17 +221,31 @@ export default function CheckoutForm({ appointment, onSuccess, onCancel }) {
         </button>
       </div>
 
+      {/* PayPal Button Container */}
+      {paymentMethod === 'paypal' && (
+        <div className="pt-2">
+          {!PAYPAL_CLIENT_ID ? (
+            <p className="text-sm text-text-muted text-center py-4">
+              PayPal is not configured yet. Please set VITE_PAYPAL_CLIENT_ID in your environment.
+            </p>
+          ) : (
+            <>
+              <div ref={paypalBtnRef} className="min-h-[40px]" />
+              {!paypalReady && (
+                <div className="flex items-center justify-center py-4">
+                  <div className="w-5 h-5 border-2 border-[#0070ba]/30 border-t-[#0070ba] rounded-full animate-spin" />
+                  <span className="ml-2 text-sm text-text-muted">Loading PayPal...</span>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
       {/* Actions */}
       <div className="flex gap-3 pt-2">
         <button onClick={onCancel} className="flex-1 py-2.5 rounded-xl border border-border text-text-secondary text-sm font-medium hover:bg-surface-alt transition-all">
           Cancel
-        </button>
-        <button
-          onClick={handlePay}
-          disabled={loading}
-          className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary-dark disabled:opacity-50 transition-all shadow-sm"
-        >
-          {loading ? 'Processing...' : `Pay $${(finalAmount / 100).toFixed(2)}`}
         </button>
       </div>
     </div>

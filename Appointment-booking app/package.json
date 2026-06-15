@@ -1,0 +1,15 @@
+{
+  "name": "appointment-booking",
+  "private": true,
+  "scripts": {
+    "test": "npm test --prefix server && npm test --prefix client",
+    "test:parallel": "npx concurrently -g --no-color \"npm test --prefix server\" \"npm test --prefix client\"",
+    "test:server": "npm test --prefix server",
+    "test:client": "npm test --prefix client",
+    "test:watch": "npx concurrently -g \"npm run test:watch --prefix server\" \"npm run test:watch --prefix client\"",
+    "test:coverage": "npm test --prefix server -- --coverage && npm test --prefix client"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

@@ -28,17 +28,6 @@ export default function NotificationPreferences() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
 
-  useEffect(() => {
-    if (user) fetchPreferences();
-  }, [user]);
-
-  // Auto-dismiss message after 5 seconds
-  useEffect(() => {
-    if (!message) return;
-    const timer = setTimeout(() => setMessage(null), 5000);
-    return () => clearTimeout(timer);
-  }, [message]);
-
   async function fetchPreferences() {
     setLoading(true);
     try {
@@ -50,6 +39,19 @@ export default function NotificationPreferences() {
     } catch { /* silent */ }
     finally { setLoading(false); }
   }
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (user) fetchPreferences();
+  }, [user]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  // Auto-dismiss message after 5 seconds
+  useEffect(() => {
+    if (!message) return;
+    const timer = setTimeout(() => setMessage(null), 5000);
+    return () => clearTimeout(timer);
+  }, [message]);
 
   async function handleToggle() {
     const newValue = !emailReminders;

@@ -131,7 +131,7 @@ function JoinWaitingListForm({ services, staff, onJoined, onCancel }) {
 // ─── Main Waiting List Page ────────────────
 
 export default function WaitingListManager() {
-  const { fetchWithAuth, user } = useAuth();
+  const { fetchWithAuth } = useAuth();
   const toast = useToast();
   const [entries, setEntries] = useState([]);
   const [services, setServices] = useState([]);

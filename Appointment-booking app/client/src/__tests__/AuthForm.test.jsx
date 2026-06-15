@@ -3,12 +3,15 @@ import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AuthProvider } from '../context/AuthContext';
 import { ToastProvider } from '../context/ToastContext';
+import { BusinessProvider } from '../context/BusinessContext';
 import AuthForm from '../components/AuthForm';
 
 function Wrapper({ children }) {
   return (
     <ToastProvider>
-      <AuthProvider>{children}</AuthProvider>
+      <BusinessProvider>
+        <AuthProvider>{children}</AuthProvider>
+      </BusinessProvider>
     </ToastProvider>
   );
 }
@@ -20,6 +23,14 @@ describe('AuthForm', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     global.fetch.mockReset();
+    // Default: route /api/settings to BusinessProvider, all other calls return empty ok
+    global.fetch.mockImplementation((url) => {
+      const urlStr = typeof url === 'string' ? url : url?.url || '';
+      if (urlStr.includes('/api/settings')) {
+        return Promise.resolve({ ok: true, json: async () => ({ settings: null }) });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) });
+    });
   });
 
   it('renders login mode by default', () => {
@@ -29,8 +40,8 @@ describe('AuthForm', () => {
       </Wrapper>
     );
 
-    expect(screen.getByText('Welcome Back')).toBeInTheDocument();
-    expect(screen.getByText('Email Address')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
+    expect(screen.getByText('Email address')).toBeInTheDocument();
     expect(screen.getByText('Password')).toBeInTheDocument();
   });
 
@@ -41,9 +52,9 @@ describe('AuthForm', () => {
       </Wrapper>
     );
 
-    expect(screen.getByRole('heading', { name: /create account/i })).toBeInTheDocument();
-    expect(screen.getByText('Full Name')).toBeInTheDocument();
-    expect(screen.getByText('Email Address')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Create account' })).toBeInTheDocument();
+    expect(screen.getByText('Full name')).toBeInTheDocument();
+    expect(screen.getByText('Email address')).toBeInTheDocument();
     expect(screen.getByText('Password')).toBeInTheDocument();
   });
 
@@ -54,7 +65,7 @@ describe('AuthForm', () => {
       </Wrapper>
     );
 
-    const toggleButton = screen.getByText(/register/i);
+    const toggleButton = screen.getByText('Create a free account');
     expect(toggleButton).toBeInTheDocument();
   });
 
@@ -67,7 +78,7 @@ describe('AuthForm', () => {
       </Wrapper>
     );
 
-    await user.click(screen.getByText(/register/i));
+    await user.click(screen.getByText('Create a free account'));
     expect(mockOnToggle).toHaveBeenCalledTimes(1);
   });
 
@@ -83,18 +94,27 @@ describe('AuthForm', () => {
     await user.click(screen.getByRole('button', { name: /sign in/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/required/i)).toBeInTheDocument();
+      expect(screen.getByText('Email is required')).toBeInTheDocument();
     });
   });
 
   it('handles successful login', async () => {
     const user = userEvent.setup();
-    global.fetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        token: 'test-token',
-        user: { id: 1, name: 'Test User', email: 'test@test.com', role: 'customer' },
-      }),
+    global.fetch.mockImplementation((url) => {
+      const urlStr = typeof url === 'string' ? url : url?.url || '';
+      if (urlStr.includes('/api/settings')) {
+        return Promise.resolve({ ok: true, json: async () => ({ settings: null }) });
+      }
+      if (urlStr.includes('/api/auth')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            token: 'test-token',
+            user: { id: 1, name: 'Test User', email: 'test@test.com', role: 'customer' },
+          }),
+        });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) });
     });
 
     render(
@@ -103,8 +123,8 @@ describe('AuthForm', () => {
       </Wrapper>
     );
 
-    const emailInput = screen.getByPlaceholderText('you@example.com');
-    const passwordInput = screen.getByPlaceholderText(/at least 6/i);
+    const emailInput = screen.getByPlaceholderText('jane@example.com');
+    const passwordInput = screen.getByLabelText('Password');
     await user.type(emailInput, 'test@test.com');
     await user.type(passwordInput, 'password123');
     await user.click(screen.getByRole('button', { name: /sign in/i }));
@@ -116,9 +136,18 @@ describe('AuthForm', () => {
 
   it('handles login error', async () => {
     const user = userEvent.setup();
-    global.fetch.mockResolvedValueOnce({
-      ok: false,
-      json: async () => ({ error: 'Invalid email or password' }),
+    global.fetch.mockImplementation((url) => {
+      const urlStr = typeof url === 'string' ? url : url?.url || '';
+      if (urlStr.includes('/api/settings')) {
+        return Promise.resolve({ ok: true, json: async () => ({ settings: null }) });
+      }
+      if (urlStr.includes('/api/auth')) {
+        return Promise.resolve({
+          ok: false,
+          json: async () => ({ error: 'Invalid email or password' }),
+        });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) });
     });
 
     render(
@@ -127,8 +156,8 @@ describe('AuthForm', () => {
       </Wrapper>
     );
 
-    const emailInput = screen.getByPlaceholderText('you@example.com');
-    const passwordInput = screen.getByPlaceholderText(/at least 6/i);
+    const emailInput = screen.getByPlaceholderText('jane@example.com');
+    const passwordInput = screen.getByLabelText('Password');
     await user.type(emailInput, 'wrong@test.com');
     await user.type(passwordInput, 'wrongpass');
     await user.click(screen.getByRole('button', { name: /sign in/i }));
@@ -140,7 +169,14 @@ describe('AuthForm', () => {
 
   it('shows loading state during submission', async () => {
     const user = userEvent.setup();
-    global.fetch.mockReturnValueOnce(new Promise(() => {}));
+    global.fetch.mockImplementation((url) => {
+      const urlStr = typeof url === 'string' ? url : url?.url || '';
+      if (urlStr.includes('/api/settings')) {
+        return Promise.resolve({ ok: true, json: async () => ({ settings: null }) });
+      }
+      // Login fetch that never resolves — keeps submitting=true
+      return new Promise(() => {});
+    });
 
     render(
       <Wrapper>
@@ -148,14 +184,17 @@ describe('AuthForm', () => {
       </Wrapper>
     );
 
-    const emailInput = screen.getByPlaceholderText('you@example.com');
-    const passwordInput = screen.getByPlaceholderText(/at least 6/i);
+    const emailInput = screen.getByPlaceholderText('jane@example.com');
+    const passwordInput = screen.getByLabelText('Password');
     await user.type(emailInput, 'test@test.com');
     await user.type(passwordInput, 'password123');
-    await user.click(screen.getByRole('button', { name: /sign in/i }));
+
+    // Capture button reference before submitting (text changes to SVG spinner when submitting)
+    const submitBtn = screen.getByRole('button', { name: /sign in/i });
+    await user.click(submitBtn);
 
     await waitFor(() => {
-      expect(screen.getByText(/signing in/i)).toBeInTheDocument();
+      expect(submitBtn).toBeDisabled();
     });
   });
 });

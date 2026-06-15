@@ -25,6 +25,77 @@ function getStripe() {
   return stripe;
 }
 
+// ─── PayPal helpers ──────────────────────────────────────
+
+const PAYPAL_API = process.env.PAYPAL_MODE === 'live'
+  ? 'https://api-m.paypal.com'
+  : 'https://api-m.sandbox.paypal.com';
+
+let _paypalAccessToken = null;
+let _paypalTokenExpires = 0;
+
+async function getPayPalAccessToken() {
+  if (_paypalAccessToken && Date.now() < _paypalTokenExpires) {
+    return _paypalAccessToken;
+  }
+  const auth = Buffer.from(`${process.env.PAYPAL_CLIENT_ID}:${process.env.PAYPAL_CLIENT_SECRET}`).toString('base64');
+  const res = await fetch(`${PAYPAL_API}/v1/oauth2/token`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Basic ${auth}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: 'grant_type=client_credentials',
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(`PayPal auth failed: ${data.error_description || data.error}`);
+  _paypalAccessToken = data.access_token;
+  _paypalTokenExpires = Date.now() + (data.expires_in - 60) * 1000;
+  return _paypalAccessToken;
+}
+
+async function createPayPalOrder(amountCents, appointmentId, userId) {
+  const token = await getPayPalAccessToken();
+  const amountUSD = (amountCents / 100).toFixed(2);
+  const res = await fetch(`${PAYPAL_API}/v2/checkout/orders`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      intent: 'CAPTURE',
+      purchase_units: [{
+        reference_id: String(appointmentId),
+        description: `Appointment #${appointmentId}`,
+        amount: { currency_code: 'USD', value: amountUSD },
+        custom_id: `${appointmentId}:${userId}`,
+      }],
+      application_context: {
+        shipping_preference: 'NO_SHIPPING',
+        user_action: 'PAY_NOW',
+      },
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(`PayPal order creation failed: ${data.message || JSON.stringify(data)}`);
+  return data;
+}
+
+async function capturePayPalOrder(orderId) {
+  const token = await getPayPalAccessToken();
+  const res = await fetch(`${PAYPAL_API}/v2/checkout/orders/${orderId}/capture`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(`PayPal capture failed: ${data.message || JSON.stringify(data)}`);
+  return data;
+}
+
 // ─── Helpers ─────────────────────────────────────────────
 
 function centsToDollars(cents) {
@@ -106,9 +177,22 @@ router.post('/create-intent', authenticateToken, async (req, res) => {
         deposit: depositAmountCents > 0,
         amountDue: depositAmountCents > 0 ? servicePriceCents : 0,
       });
-    } else {
-      // PayPal flow — return order details for client-side PayPal SDK
+    } else if (payment_method === 'paypal') {
+      // Create a real PayPal order
+      const paypalOrder = await createPayPalOrder(amountToCharge, appointment.id, req.user.id);
+
+      // Save payment intent record
+      await run(`
+        INSERT INTO payment_intents (appointment_id, user_id, paypal_order_id, amount, currency, status, deposit_amount)
+        VALUES ($1, $2, $3, $4, 'usd', 'created', $5)
+      `, [appointment.id, req.user.id, paypalOrder.id, amountToCharge, depositAmountCents]);
+
+      await run(`UPDATE appointments SET payment_status = 'requires_payment' WHERE id = $1`, [appointment.id]);
+
+      logger.info({ appointmentId: appointment.id, orderId: paypalOrder.id, amount: amountToCharge }, 'PayPal order created');
+
       res.json({
+        paypalOrderId: paypalOrder.id,
         amount: amountToCharge,
         deposit: depositAmountCents > 0,
         appointmentId: appointment.id,
@@ -137,12 +221,28 @@ router.post('/confirm', authenticateToken, async (req, res) => {
     const depositAmount = service.deposit_required || 0;
     const charged = depositAmount > 0 ? depositAmount : amount;
 
-    // Save payment record
-    const piResult = await run(`
-      INSERT INTO payment_intents (appointment_id, user_id, paypal_order_id, amount, currency, status, deposit_amount)
-      VALUES ($1, $2, $3, $4, 'usd', $5, $6)
-      RETURNING id
-    `, [appointment.id, req.user.id, payment_id, charged, status || 'succeeded', depositAmount]);
+    // For PayPal, capture the order server-side
+    if (payment_method === 'paypal' && payment_id) {
+      try {
+        const captureData = await capturePayPalOrder(payment_id);
+        // Check if capture was successful
+        const captureStatus = captureData.status;
+        if (captureStatus !== 'COMPLETED') {
+          logger.warn({ orderId: payment_id, captureStatus }, 'PayPal capture not completed');
+          return sendError(res, 400, `PayPal payment ${captureStatus.toLowerCase()}`);
+        }
+        logger.info({ orderId: payment_id, captureId: captureData.purchase_units?.[0]?.payments?.captures?.[0]?.id }, 'PayPal order captured');
+      } catch (captureErr) {
+        logger.error({ err: captureErr, orderId: payment_id }, 'PayPal capture failed');
+        return sendError(res, 500, 'Failed to capture PayPal payment');
+      }
+    }
+
+    // Update payment record (match by paypal_order_id which was stored during creation)
+    await run(`
+      UPDATE payment_intents SET status = $1, updated_at = NOW()
+      WHERE paypal_order_id = $2
+    `, [status || 'succeeded', payment_id]);
 
     const newPaymentStatus = depositAmount > 0 ? 'deposit_paid' : 'paid';
     await run(`UPDATE appointments SET payment_status = $1 WHERE id = $2`,
@@ -150,7 +250,7 @@ router.post('/confirm', authenticateToken, async (req, res) => {
 
     logger.info({ appointmentId: appointment.id, method: payment_method, paymentId: payment_id }, 'Payment confirmed');
 
-    res.json({ success: true, paymentId: piResult.lastInsertRowid, paymentStatus: newPaymentStatus });
+    res.json({ success: true, paymentStatus: newPaymentStatus });
   } catch (err) {
     logger.error({ err }, 'Payment confirmation failed');
     sendError(res, 500, err.message || 'Payment confirmation failed');
@@ -175,6 +275,7 @@ router.post('/refund', authenticateToken, async (req, res) => {
     if (pi.status === 'refunded') return sendError(res, 400, 'Payment already refunded');
 
     let refundResult = { id: 'manual', status: 'succeeded', amount: pi.amount };
+    let refundMethod = 'manual';
 
     if (pi.stripe_pi_id && process.env.STRIPE_SECRET_KEY) {
       const s = getStripe();
@@ -184,6 +285,40 @@ router.post('/refund', authenticateToken, async (req, res) => {
           amount: pi.amount,
           metadata: { reason: 'appointment_cancellation' },
         });
+        refundMethod = 'stripe';
+      }
+    } else if (pi.paypal_order_id && process.env.PAYPAL_CLIENT_ID) {
+      // Refund via PayPal
+      try {
+        // Get the capture ID from the payment intent's related captures
+        const token = await getPayPalAccessToken();
+        const orderRes = await fetch(`${PAYPAL_API}/v2/checkout/orders/${pi.paypal_order_id}`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        const orderData = await orderRes.json();
+        const captureId = orderData.purchase_units?.[0]?.payments?.captures?.[0]?.id;
+
+        if (captureId) {
+          const refundRes = await fetch(`${PAYPAL_API}/v2/payments/captures/${captureId}/refund`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              amount: { currency_code: 'USD', value: centsToDollars(pi.amount) },
+            }),
+          });
+          const refundData = await refundRes.json();
+          if (refundRes.ok) {
+            refundResult = { id: refundData.id, status: refundData.status, amount: pi.amount };
+            refundMethod = 'paypal';
+          } else {
+            logger.warn({ orderId: pi.paypal_order_id, refundError: refundData }, 'PayPal refund failed');
+          }
+        }
+      } catch (paypalRefundErr) {
+        logger.error({ err: paypalRefundErr, orderId: pi.paypal_order_id }, 'PayPal refund error');
       }
     }
 
