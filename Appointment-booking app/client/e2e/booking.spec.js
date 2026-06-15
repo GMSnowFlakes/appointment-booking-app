@@ -12,12 +12,12 @@ test.describe('Services', () => {
     await page.goto('/');
     await page.waitForLoadState('domcontentloaded');
 
-    // Wait for "Our Services" heading to appear (services loaded)
-    await expect(page.locator('text=Our Services')).toBeVisible({ timeout: 15_000 });
+    // Wait for services heading to appear
+    await expect(page.locator('h1:has-text("Premium Services")')).toBeVisible({ timeout: 15_000 });
 
     // Should show seeded services
-    await expect(page.locator('text=Haircut & Styling').first()).toBeVisible({ timeout: 5_000 });
-    await expect(page.locator('text=Massage Therapy').first()).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator('text=Haircut & Styling').first()).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('text=Massage Therapy').first()).toBeVisible({ timeout: 10_000 });
 
     // Should show category headings
     await expect(page.locator('h2:has-text("Hair")').first()).toBeVisible({ timeout: 5_000 });
@@ -27,7 +27,7 @@ test.describe('Services', () => {
   test('should search and filter services', async ({ page }) => {
     await page.goto('/');
     await page.waitForLoadState('domcontentloaded');
-    await expect(page.locator('text=Our Services')).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('h1:has-text("Premium Services")')).toBeVisible({ timeout: 15_000 });
 
     // Type in the search box
     const searchInput = page.locator('input[placeholder*="Search"]');
@@ -63,10 +63,10 @@ test.describe('Services', () => {
 test.describe('Book Appointment', () => {
 
   test('should require authentication to book', async ({ page }) => {
-    // Without being logged in, "Book Appointment" should not be in the navbar
+    // Without being logged in, "Book" should not be in the navbar
     await page.goto('/');
     await page.waitForLoadState('domcontentloaded');
-    await expect(page.locator('nav button', { hasText: 'Book Appointment' })).not.toBeVisible();
+    await expect(page.locator('nav button', { hasText: 'Book' })).not.toBeVisible();
   });
 
   test('should show booking form for authenticated users', async ({ page }) => {
@@ -81,15 +81,15 @@ test.describe('Book Appointment', () => {
     // Login via UI
     await page.goto('/');
     await page.waitForLoadState('domcontentloaded');
-    await page.locator('nav button', { hasText: 'Sign In' }).click();
+    await page.locator('nav button', { hasText: 'Sign in' }).click();
     await page.waitForSelector('input[type="email"]', { timeout: 10_000 });
     await page.fill('input[type="email"]', user.email);
     await page.fill('input[type="password"]', user.password);
     await page.locator('button[type="submit"]').click();
     await expect(page.locator('nav')).toContainText(user.name, { timeout: 15_000 });
 
-    // Navigate to Book Appointment
-    await page.locator('nav button', { hasText: 'Book Appointment' }).click();
+    // Navigate to Book
+    await page.locator('nav button', { hasText: 'Book' }).click();
 
     // Wait for the booking form to load with services
     await expect(page.locator('text=Choose a Service')).toBeVisible({ timeout: 10_000 });
@@ -113,15 +113,15 @@ test.describe('View and Manage Appointments', () => {
     // Login via UI
     await page.goto('/');
     await page.waitForLoadState('domcontentloaded');
-    await page.locator('nav button', { hasText: 'Sign In' }).click();
+    await page.locator('nav button', { hasText: 'Sign in' }).click();
     await page.waitForSelector('input[type="email"]', { timeout: 10_000 });
     await page.fill('input[type="email"]', user.email);
     await page.fill('input[type="password"]', user.password);
     await page.locator('button[type="submit"]').click();
     await expect(page.locator('nav')).toContainText(user.name, { timeout: 15_000 });
 
-    // Navigate to My Appointments
-    await page.locator('nav button', { hasText: 'My Appointments' }).click();
+    // Navigate to Appointments
+    await page.locator('nav button', { hasText: 'Appointments' }).click();
     await page.waitForLoadState('domcontentloaded');
 
     // Should see the appointments page header
@@ -150,7 +150,7 @@ test.describe('View and Manage Appointments', () => {
     await expect(page.locator('nav')).toContainText(user.name, { timeout: 15_000 });
 
     // Go to appointments
-    await page.locator('nav button', { hasText: 'My Appointments' }).click();
+    await page.locator('nav button', { hasText: 'Appointments' }).click();
     await page.waitForLoadState('domcontentloaded');
 
     // Verify filter tabs

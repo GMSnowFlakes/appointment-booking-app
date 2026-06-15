@@ -44,10 +44,10 @@ export default defineConfig({
   // Auto-start the Express API server and Vite dev server
   webServer: [
     {
-      command: `node ${path.join(serverDir, 'index.js')}`,
+      command: `node "${path.join(serverDir, 'index.js')}"`,
       port: PORT,
       timeout: 30_000,
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: false,
       cwd: serverDir,
       env: {
         ...process.env,
@@ -66,7 +66,7 @@ export default defineConfig({
       command: `npx vite --port ${CLIENT_PORT}`,
       port: CLIENT_PORT,
       timeout: 30_000,
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: false,
       cwd: path.resolve(__dirname, '..'),
       env: {
         ...process.env,

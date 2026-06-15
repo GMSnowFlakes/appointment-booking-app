@@ -17,7 +17,7 @@ test.describe('Authentication', () => {
     await page.waitForLoadState('domcontentloaded');
 
     // Click Register in the navbar
-    await page.locator('nav button', { hasText: 'Register' }).click();
+    await page.locator('nav button', { hasText: 'Get Started' }).click();
 
     // Wait for the auth form email input to appear
     await page.waitForSelector('input[type="email"]', { timeout: 10_000 });
@@ -51,11 +51,11 @@ test.describe('Authentication', () => {
       await registerViaUI(page, user);
 
       // Sign out
-      await page.locator('nav button', { hasText: 'Sign Out' }).click();
-      await page.waitForSelector('nav button:has-text("Sign In")', { timeout: 10_000 });
+      await page.locator('nav button', { hasText: 'Sign out' }).click();
+      await page.waitForSelector('nav button:has-text("Sign in")', { timeout: 10_000 });
 
       // Try to register again with the same email
-      await page.locator('nav button', { hasText: 'Register' }).click();
+      await page.locator('nav button', { hasText: 'Get Started' }).click();
       await page.waitForSelector('input[type="email"]', { timeout: 10_000 });
 
       // Fill form with same email, different name
@@ -82,7 +82,7 @@ test.describe('Authentication', () => {
     test('should show validation errors for empty registration', async ({ page }) => {
       await page.goto('/');
       await page.waitForLoadState('domcontentloaded');
-      await page.locator('nav button', { hasText: 'Register' }).click();
+      await page.locator('nav button', { hasText: 'Get Started' }).click();
       await page.waitForSelector('input[type="email"]', { timeout: 10_000 });
 
       // Submit with empty fields — client-side validation fires first
@@ -108,12 +108,12 @@ test.describe('Authentication', () => {
       await page.goto('/');
       await page.waitForLoadState('domcontentloaded');
 
-      // Click Sign In
-      await page.locator('nav button', { hasText: 'Sign In' }).click();
+      // Click Sign in
+      await page.locator('nav button', { hasText: 'Sign in' }).click();
       await page.waitForSelector('input[type="email"]', { timeout: 10_000 });
 
       // Wait for the login form heading
-      await expect(page.locator('text=Sign In').first()).toBeVisible({ timeout: 5_000 });
+      await expect(page.locator('text=Sign in').first()).toBeVisible({ timeout: 5_000 });
 
       // Fill credentials
       await page.fill('input[type="email"]', user.email);
@@ -127,7 +127,7 @@ test.describe('Authentication', () => {
     test('should show error for invalid credentials', async ({ page }) => {
       await page.goto('/');
       await page.waitForLoadState('domcontentloaded');
-      await page.locator('nav button', { hasText: 'Sign In' }).click();
+      await page.locator('nav button', { hasText: 'Sign in' }).click();
       await page.waitForSelector('input[type="email"]', { timeout: 10_000 });
 
       await page.fill('input[type="email"]', 'nonexistent@test.com');
@@ -156,8 +156,7 @@ test.describe('Authentication', () => {
 
       // Login via UI
       await page.goto('/');
-      await page.waitForLoadState('domcontentloaded');
-      await page.locator('nav button', { hasText: 'Sign In' }).click();
+      await page.waitForLoadState('domcontentloaded');      await page.locator('nav button', { hasText: 'Sign in' }).click();
       await page.waitForSelector('input[type="email"]', { timeout: 10_000 });
       await page.fill('input[type="email"]', user.email);
       await page.fill('input[type="password"]', user.password);
@@ -165,12 +164,12 @@ test.describe('Authentication', () => {
       await expect(page.locator('nav')).toContainText(user.name, { timeout: 15_000 });
 
       // Log out
-      await page.locator('nav button', { hasText: 'Sign Out' }).click();
-      await page.waitForSelector('nav button:has-text("Sign In")', { timeout: 10_000 });
+      await page.locator('nav button', { hasText: 'Sign out' }).click();
+      await page.waitForSelector('nav button:has-text("Sign in")', { timeout: 10_000 });
 
-      // Should see Sign In and Register buttons
-      await expect(page.locator('nav button', { hasText: 'Sign In' })).toBeVisible();
-      await expect(page.locator('nav button', { hasText: 'Register' })).toBeVisible();
+      // Should see Sign in and Get Started buttons
+      await expect(page.locator('nav button', { hasText: 'Sign in' })).toBeVisible();
+      await expect(page.locator('nav button', { hasText: 'Get Started' })).toBeVisible();
     });
   });
 });

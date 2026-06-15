@@ -67,7 +67,7 @@ test.describe('Admin Dashboard', () => {
   async function loginAsAdmin(page) {
     await page.goto('/');
     await page.waitForLoadState('domcontentloaded');
-    await page.locator('nav button', { hasText: 'Sign In' }).click();
+    await page.locator('nav button', { hasText: 'Sign in' }).click();
     await page.waitForSelector('input[type="email"]', { timeout: 10_000 });
     await page.fill('input[type="email"]', adminUser.email);
     await page.fill('input[type="password"]', adminUser.password);

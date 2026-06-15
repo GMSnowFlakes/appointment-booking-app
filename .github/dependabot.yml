@@ -1,0 +1,77 @@
+# Dependabot — Automated dependency updates
+# Docs: https://docs.github.com/en/code-security/dependabot
+
+version: 2
+updates:
+  # ─── Server dependencies ─────────────────────────
+  - package-ecosystem: "npm"
+    directory: "/Appointment-booking app/server"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+      timezone: "America/New_York"
+    versioning-strategy: "auto"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "server"
+    commit-message:
+      prefix: "fix"
+      prefix-development: "chore"
+      include: "scope"
+    groups:
+      production-deps:
+        dependency-type: "production"
+        update-types:
+          - "minor"
+          - "patch"
+      dev-deps:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # ─── Client dependencies ─────────────────────────
+  - package-ecosystem: "npm"
+    directory: "/Appointment-booking app/client"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+      timezone: "America/New_York"
+    versioning-strategy: "auto"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "client"
+    commit-message:
+      prefix: "fix"
+      prefix-development: "chore"
+      include: "scope"
+    groups:
+      production-deps:
+        dependency-type: "production"
+        update-types:
+          - "minor"
+          - "patch"
+      dev-deps:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # ─── GitHub Actions (CI workflows) ───────────────
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+      timezone: "America/New_York"
+    labels:
+      - "dependencies"
+      - "ci"
+    commit-message:
+      prefix: "chore"
+      include: "scope"

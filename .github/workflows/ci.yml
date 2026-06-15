@@ -15,23 +15,19 @@ jobs:
     name: ESLint
     runs-on: ubuntu-latest
     timeout-minutes: 5
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'npm'
-          cache-dependency-path: "Appointment-booking app/client/package-lock.json"
-
+          cache-dependency-path: Appointment-booking app/client/package-lock.json
       - name: Install dependencies
         run: npm ci
-        working-directory: "Appointment-booking app/client"
-
+        working-directory: Appointment-booking app/client
       - name: Run ESLint
         run: npm run lint
-        working-directory: "Appointment-booking app/client"
+        working-directory: Appointment-booking app/client
 
   server-unit-tests:
     name: Server unit tests (Node ${{ matrix.node-version }})
@@ -42,23 +38,19 @@ jobs:
       max-parallel: 2
       matrix:
         node-version: [18, 20, 22]
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
-          cache-dependency-path: "Appointment-booking app/server/package-lock.json"
-
+          cache-dependency-path: Appointment-booking app/server/package-lock.json
       - name: Install dependencies
         run: npm ci
-        working-directory: "Appointment-booking app/server"
-
+        working-directory: Appointment-booking app/server
       - name: Run server unit tests
         run: npm test -- --reporter=verbose
-        working-directory: "Appointment-booking app/server"
+        working-directory: Appointment-booking app/server
 
   client-unit-tests:
     name: Client unit tests (Node ${{ matrix.node-version }})
@@ -69,27 +61,22 @@ jobs:
       max-parallel: 2
       matrix:
         node-version: [18, 20, 22]
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
-          cache-dependency-path: "Appointment-booking app/client/package-lock.json"
-
+          cache-dependency-path: Appointment-booking app/client/package-lock.json
       - name: Install dependencies
         run: npm ci
-        working-directory: "Appointment-booking app/client"
-
+        working-directory: Appointment-booking app/client
       - name: Run ESLint
         run: npm run lint
-        working-directory: "Appointment-booking app/client"
-
+        working-directory: Appointment-booking app/client
       - name: Run client unit tests
         run: npm test -- --reporter=verbose
-        working-directory: "Appointment-booking app/client"
+        working-directory: Appointment-booking app/client
 
   e2e-tests:
     name: E2E tests (Node ${{ matrix.node-version }})
@@ -100,7 +87,6 @@ jobs:
       max-parallel: 2
       matrix:
         node-version: [18, 20, 22]
-
     services:
       postgres:
         image: postgres:16-alpine
@@ -115,41 +101,34 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
-          cache-dependency-path: "Appointment-booking app/client/package-lock.json"
-
+          cache-dependency-path: Appointment-booking app/client/package-lock.json
       - name: Install server dependencies
         run: npm ci
-        working-directory: "Appointment-booking app/server"
-
+        working-directory: Appointment-booking app/server
       - name: Install client dependencies
         run: npm ci
-        working-directory: "Appointment-booking app/client"
-
+        working-directory: Appointment-booking app/client
       - name: Install Playwright Chromium
         run: npx playwright install chromium
-        working-directory: "Appointment-booking app/client"
-
+        working-directory: Appointment-booking app/client
       - name: Run E2E tests
         run: npm run e2e
-        working-directory: "Appointment-booking app/client"
+        working-directory: Appointment-booking app/client
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/appointmentbook
           DISABLE_RATE_LIMIT: 'true'
           LOG_LEVEL: silent
-
       - name: Upload test artifacts on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-test-results-${{ matrix.node-version }}
-          path: "Appointment-booking app/client/test-results/"
+          path: Appointment-booking app/client/test-results/
           if-no-files-found: ignore
           retention-days: 7
