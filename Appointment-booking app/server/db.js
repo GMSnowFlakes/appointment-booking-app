@@ -38,20 +38,31 @@ function getDatabaseUrl() {
 async function initDatabase() {
   pool = new Pool({
     connectionString: getDatabaseUrl(),
-    // Allow the pool to retry connections
     max: 10,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 5000,
   });
 
+  // If PG_SCHEMA is set (E2E test isolation), apply search_path to every
+  // new connection from the pool so all queries use the test schema.
+  if (process.env.PG_SCHEMA) {
+    const schema = process.env.PG_SCHEMA;
+    // Create the schema first using a dedicated connection
+    const setupClient = await pool.connect();
+    try {
+      await setupClient.query(`CREATE SCHEMA IF NOT EXISTS ${schema}`);
+    } finally {
+      setupClient.release();
+    }
+    // Hook into every future connection from the pool
+    pool.on('connect', (client) => {
+      client.query(`SET search_path TO ${schema}, public`).catch(() => {});
+    });
+  }
+
   // Verify the connection works
   const client = await pool.connect();
   try {
-    // Set the schema search path if PG_SCHEMA is provided (used by tests)
-    if (process.env.PG_SCHEMA) {
-      await client.query(`CREATE SCHEMA IF NOT EXISTS ${process.env.PG_SCHEMA}`);
-      await client.query(`SET search_path TO ${process.env.PG_SCHEMA}, public`);
-    }
     await client.query('SELECT 1');
   } finally {
     client.release();

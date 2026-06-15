@@ -67,7 +67,8 @@ module.exports = async ({ run }) => {
   await run(`
     INSERT INTO locations (name, address)
     SELECT COALESCE(business_name, 'Main Location'), COALESCE(business_description, '')
-    FROM business_settings LIMIT 1
+    FROM business_settings
     WHERE NOT EXISTS (SELECT 1 FROM locations)
+    LIMIT 1
   `);
 };

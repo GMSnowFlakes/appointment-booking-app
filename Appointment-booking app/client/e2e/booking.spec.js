@@ -12,8 +12,8 @@ test.describe('Services', () => {
     await page.goto('/');
     await page.waitForLoadState('domcontentloaded');
 
-    // Wait for services heading to appear
-    await expect(page.locator('h1:has-text("Premium Services")')).toBeVisible({ timeout: 15_000 });
+    // Wait for the hero section to render (business name heading)
+    await expect(page.locator('h1').first()).toBeVisible({ timeout: 15_000 });
 
     // Should show seeded services
     await expect(page.locator('text=Haircut & Styling').first()).toBeVisible({ timeout: 10_000 });
@@ -27,7 +27,7 @@ test.describe('Services', () => {
   test('should search and filter services', async ({ page }) => {
     await page.goto('/');
     await page.waitForLoadState('domcontentloaded');
-    await expect(page.locator('h1:has-text("Premium Services")')).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('h1').first()).toBeVisible({ timeout: 15_000 });
 
     // Type in the search box
     const searchInput = page.locator('input[placeholder*="Search"]');

@@ -189,6 +189,7 @@ export default function AuthForm({ mode, onSuccess, onToggle }) {
                 <label htmlFor="auth-name" className="input-label">Full name</label>
                 <input
                   id="auth-name"
+                  name="name"
                   type="text"
                   autoComplete="name"
                   placeholder="Jane Smith"
