@@ -114,7 +114,7 @@ function TimeColumn({ slots, selectedSlot, onSelect, isSlotBooked, canFit, disab
           const isHovering = slot === dragHover && isDragging;
           const canSelect = !booked && fits;
 
-          let cellStyle = '';
+          let cellStyle;
           if (booked || !fits) {
             cellStyle = 'bg-error-bg text-error/60 line-through cursor-not-allowed border border-red-200';
           } else if (isSelected || isHovering) {

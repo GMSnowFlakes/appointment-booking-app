@@ -357,7 +357,11 @@ function BusinessOverview() {
     }).catch(() => { setLoadError(true); setLoading(false); });
   }
 
+  /* eslint-disable react-hooks/set-state-in-effect */
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => { loadDashboard(); }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   if (loading) return <Spinner />;
   if (loadError) {
@@ -1360,7 +1364,7 @@ function UsersTab() {
 // ─── Staff Tab ─────────────────────────────
 
 function StaffTab() {
-  const { fetchWithAuth, user } = useAuth();
+  const { fetchWithAuth } = useAuth();
   const toast = useToast();
   const [staff, setStaff] = useState([]);
   const [services, setServices] = useState([]);
@@ -1775,6 +1779,7 @@ function CouponsTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     async function load() {
       setLoading(true);
@@ -1810,6 +1815,7 @@ function CouponsTab() {
     if (user?.role === 'admin') load();
     else setLoading(false);
   }, [user]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   async function handleToggleActive(coupon) {
     try {
@@ -2165,7 +2171,7 @@ function TemplatesTab() {
 
 
 export default function AdminDashboard() {
-  const { user, fetchWithAuth } = useAuth();
+  useAuth();
   const { settings } = useBusiness();
   const { tab } = useParams();
 

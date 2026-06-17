@@ -636,7 +636,7 @@ function CreditsSection() {
   useEffect(() => {
     async function load() {
       try {
-        const [creditsRes, transRes] = await Promise.all([
+        const [creditsRes] = await Promise.all([
           fetchWithAuth('/api/credits').then(r => safeFetchJson(r, 'Credits')),
           fetchWithAuth('/api/credits/transactions').then(r => safeFetchJson(r, 'CreditsTransactions')),
         ]);

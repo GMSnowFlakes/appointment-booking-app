@@ -30,10 +30,13 @@ module.exports = async ({ run }) => {
   `);
 
   // ── Seed default tenant (for existing single-tenant data) ─
+  // Use hardcoded VALUES so the default tenant is always created,
+  // even when business_settings is empty (e.g. fresh database installs).
+  // The business_settings table may not be populated yet because
+  // seed data runs after migrations finish.
   await run(`
     INSERT INTO tenants (slug, name, business_type, primary_color)
-    SELECT 'default', COALESCE(business_name, 'My Business'), COALESCE(business_type, 'salon'), COALESCE(primary_color, '#e11d48')
-    FROM business_settings LIMIT 1
+    VALUES ('default', 'My Business', 'salon', '#e11d48')
     ON CONFLICT (slug) DO NOTHING
   `);
 

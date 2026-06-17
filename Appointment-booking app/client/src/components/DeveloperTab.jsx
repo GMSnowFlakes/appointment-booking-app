@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { safeFetchJson, safeFetchShape } from '../hooks/useSafeFetch';
+import { safeFetchJson } from '../hooks/useSafeFetch';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { useBusiness } from '../context/BusinessContext';
