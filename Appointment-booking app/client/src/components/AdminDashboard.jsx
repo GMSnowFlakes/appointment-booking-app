@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { useBusiness } from '../context/BusinessContext';
@@ -312,221 +313,307 @@ function Icon({ name, className = 'w-5 h-5', ...rest }) {
   return icons[name] || <svg {...svgProps} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>;
 }
 
-// ─── Business Story Tab ─────────────────────────
-// A narrative overview showing the whole production flow — the story of the business
+// ─── Business Overview ──────────────────────────
+// The main dashboard landing page — KPIs, today's schedule, revenue insights, activity, quick actions
 
-function StoryTab() {
+function BusinessOverview() {
   const { fetchWithAuth } = useAuth();
   const { settings } = useBusiness();
+  const navigate = useNavigate();
   const [data, setData] = useState(null);
+  const [todayApts, setTodayApts] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  const exportRevenue = downloadCsv(fetchWithAuth, '/api/export/revenue', `revenue_${new Date().toISOString().slice(0, 10)}.csv`);
-
-  async function loadStory() {
-    setLoading(true);
-    try {
-      const [svcRes, aptRes, usrRes, staffRes, anlRes] = await Promise.all([
-        fetchWithAuth('/api/admin/services'),
-        fetchWithAuth('/api/admin/appointments?limit=1'),
-        fetchWithAuth('/api/admin/users'),
-        fetchWithAuth('/api/staff/admin'),
-        fetchWithAuth('/api/analytics/summary?period=all'),
-      ]);
-      const svc = await svcRes.json();
-      const apt = await aptRes.json();
-      const usr = await usrRes.json();
-      const stf = await staffRes.json();
-      const anl = anlRes.ok ? await anlRes.json() : { summary: {} };
-
-      const s = anl.summary || {};
-      setData({
-        bookings: s.total_bookings || 0,
-        revenue: parseFloat(s.total_revenue) || 0,
-        avgValue: parseFloat(s.avg_booking_value) || 0,
-        customers: s.active_customers || 0,
-        cancellations: s.cancellations || 0,
-        growth: s.revenue_growth,
-        bookingGrowth: s.booking_growth,
-        thisMonth: s.this_month,
-        lastMonth: s.last_month,
-        services: svc.services?.filter(x => x.is_active).length || 0,
-        totalServices: svc.services?.length || 0,
-        appointments: apt.pagination?.total || 0,
-        totalUsers: usr.users?.length || 0,
-        staff: stf.staff?.length || 0,
-      });
-    } catch { /* silent */ }
-    setLoading(false);
-  }
-
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => {
-    loadStory();
-  }, []);
-  /* eslint-enable react-hooks/set-state-in-effect */
-
-  if (loading) return <Spinner />;
-
-  const storyChapters = [
-    { label: 'Business Founded', desc: settings?.business_name || 'Your Business', icon: 'sparkle', color: 'bg-amber-50 text-amber-600 border-amber-200', stat: settings?.business_type || 'salon', unit: 'type' },
-    { label: 'Services Offered', desc: 'Crafting quality experiences', icon: 'services', color: 'bg-blue-50 text-blue-600 border-blue-200', stat: data?.services || 0, unit: 'active' },
-    { label: 'Team Members', desc: 'Skilled professionals', icon: 'people', color: 'bg-purple-50 text-purple-600 border-purple-200', stat: data?.staff || 0, unit: 'staff' },
-    { label: 'Customers Served', desc: 'Happy clients served', icon: 'users', color: 'bg-green-50 text-green-600 border-green-200', stat: data?.customers || 0, unit: 'people' },
-    { label: 'Appointments Booked', desc: 'Total reservations fulfilled', icon: 'calendar', color: 'bg-rose-50 text-rose-600 border-rose-200', stat: data?.bookings || 0, unit: 'bookings' },
-    { label: 'Revenue Generated', desc: 'Total earnings to date', icon: 'dollar', color: 'bg-emerald-50 text-emerald-600 border-emerald-200', stat: `$${data?.revenue > 0 ? parseFloat(data.revenue).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : '0'}`, unit: 'gross' },
-  ];
+  const [loadError, setLoadError] = useState(false);
 
   const primaryColor = settings?.primary_color || '#e11d48';
 
+  function loadDashboard() {
+    setLoading(true);
+    setLoadError(false);
+    Promise.all([
+      fetchWithAuth('/api/analytics/summary?period=all'),
+      fetchWithAuth('/api/admin/appointments?limit=5&sort=date:asc'),
+    ]).then(async ([anlRes, todayRes]) => {
+      let anl, today;
+      try { anl = anlRes.ok ? await anlRes.json() : { summary: {} }; } catch { anl = { summary: {} }; }
+      try { today = todayRes.ok ? await todayRes.json() : { appointments: [] }; } catch { today = { appointments: [] }; }
+      const s = anl.summary || {};
+      setData({
+        todayBookings: s.today_bookings || 0,
+        revenueThisMonth: parseFloat(s.this_month?.revenue) || 0,
+        activeCustomers: s.active_customers || 0,
+        staffUtilization: s.staff_utilization || 0,
+        revenueGrowth: s.revenue_growth,
+        bookingGrowth: s.booking_growth,
+        totalRevenue: parseFloat(s.total_revenue) || 0,
+        totalBookings: s.total_bookings || 0,
+        thisMonth: s.this_month,
+        lastMonth: s.last_month,
+        avgValue: parseFloat(s.avg_booking_value) || 0,
+        cancellations: s.cancellations || 0,
+      });
+      setTodayApts(today.appointments || []);
+      setLoading(false);
+    }).catch(() => { setLoadError(true); setLoading(false); });
+  }
+
+  useEffect(() => { loadDashboard(); }, []);
+
+  if (loading) return <Spinner />;
+  if (loadError) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16">
+        <div className="w-14 h-14 mx-auto mb-4 bg-warning-bg rounded-2xl flex items-center justify-center">
+          <svg className="w-7 h-7 text-warning" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+        </div>
+        <h3 className="text-lg font-semibold text-text mb-2">Unable to load dashboard data</h3>
+        <p className="text-text-secondary text-sm mb-6 max-w-sm text-center">Please try again or contact support if the problem persists.</p>
+        <button onClick={loadDashboard} className="px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary-dark transition-colors shadow-sm">Retry</button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
-      {/* Hero section — the "About" of the business */}
-      <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-white to-surface-warm p-8">
-        <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-2">
-            <Icon name="storyline" className="w-5 h-5" style={{ color: primaryColor }} />
-            <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: primaryColor }}>The Story</span>
-          </div>
-          <h2 className="text-2xl sm:text-3xl font-serif font-bold text-text mt-1">
-            {settings?.business_name || 'Your Business'}
-          </h2>
-          <p className="text-text-secondary mt-2 max-w-2xl leading-relaxed">
-            {settings?.business_description || 'A complete overview of your business journey — from the services you offer to every appointment fulfilled. This is your production story, showing how your team turns every booking into an experience.'}
-          </p>
-          <div className="flex flex-wrap items-center gap-4 mt-4">
-            <div className="flex items-center gap-2 text-sm text-text-muted bg-surface-warm px-3 py-1.5 rounded-lg border border-border">
-              <Icon name="eyeball" className="w-4 h-4" />
-              <span>{data?.totalUsers || 0} registered users</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm text-text-muted bg-surface-warm px-3 py-1.5 rounded-lg border border-border">
-              <Icon name="services" className="w-4 h-4" />
-              <span>{data?.totalServices || 0} total services</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm text-text-muted bg-surface-warm px-3 py-1.5 rounded-lg border border-border">
-              <Icon name="trending" className="w-4 h-4" />
-              <span>{data?.bookings || 0} lifetime bookings</span>
-            </div>
-            <button onClick={exportRevenue}
-              className="flex items-center gap-2 text-sm text-primary font-medium bg-primary-bg px-3 py-1.5 rounded-lg border border-primary/20 hover:bg-primary/10 hover:border-primary/40 transition-all">
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
-              Export Revenue CSV
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Production timeline — narrative flow */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        {storyChapters.map((ch, i) => (
-          <div key={i} className="relative group">
-            <div className={`rounded-xl border ${ch.color} p-4 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5`}>
-              <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-white shadow-sm border border-inherit mb-3">
-                <Icon name={ch.icon} className="w-5 h-5" />
+      {/* ── KPI Row ───────────────────────────── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: "Today's Appointments", value: data?.todayBookings || 0, icon: 'calendar', color: '#2563eb', change: null },
+          { label: 'Revenue This Month', value: `$${(data?.revenueThisMonth || 0).toLocaleString()}`, icon: 'dollar', color: '#059669', change: data?.revenueGrowth },
+          { label: 'Active Customers', value: data?.activeCustomers || 0, icon: 'users', color: '#7c3aed', change: null },
+          { label: 'Staff Utilization', value: data?.staffUtilization ? `${Math.round(data.staffUtilization * 100)}%` : '—', icon: 'people', color: '#d97706', change: null },
+        ].map(kpi => (
+          <div key={kpi.label} className="relative overflow-hidden bg-white rounded-xl border border-border p-5 shadow-sm">
+            <div className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: kpi.color }} />
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-medium uppercase tracking-wider" style={{ color: kpi.color }}>{kpi.label}</span>
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: kpi.color + '12' }}>
+                <Icon name={kpi.icon} className="w-4 h-4" style={{ color: kpi.color }} />
               </div>
-              <p className="text-2xl font-bold text-text">{ch.stat}</p>
-              <p className="text-xs text-text-muted mt-0.5">{ch.unit}</p>
-              <p className="text-sm font-medium text-text mt-2">{ch.label}</p>
-              <p className="text-[10px] text-text-muted mt-0.5">{ch.desc}</p>
             </div>
-            {/* Connector arrow between cards (hidden on mobile) */}
-            {i < storyChapters.length - 1 && (
-              <div className="hidden lg:block absolute -right-2 top-1/2 -translate-y-1/2 z-10 text-text-muted/30">
-                <Icon name="arrowUp" className="w-4 h-4 rotate-90" />
+            <p className="text-2xl font-bold text-text">{kpi.value}</p>
+            {kpi.change != null && (
+              <div className="flex items-center gap-1 mt-1.5">
+                <Icon name={kpi.change >= 0 ? 'arrowUp' : 'arrowDown'} className={`w-3.5 h-3.5 ${kpi.change >= 0 ? 'text-green-500' : 'text-red-500'}`} />
+                <span className={`text-xs font-medium ${kpi.change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {Math.abs(parseFloat(kpi.change)).toFixed(1)}%
+                </span>
               </div>
             )}
           </div>
         ))}
       </div>
 
-      {/* Growth metrics row */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white rounded-xl border border-border p-5 shadow-sm">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ backgroundColor: primaryColor + '15' }}>
-              <Icon name="trending" className="w-4 h-4" style={{ color: primaryColor }} />
+      {/* ── Main Grid: Today's Schedule + Revenue Insights ────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Today's Schedule */}
+        <div className="lg:col-span-2 bg-white rounded-xl border border-border p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center">
+                <Icon name="calendar" className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-text">Today's Schedule</h3>
+                <p className="text-xs text-text-muted">{todayApts.length} appointment{todayApts.length !== 1 ? 's' : ''} today</p>
+              </div>
             </div>
-            <span className="text-sm font-semibold text-text">Monthly Performance</span>
+            <button onClick={() => navigate('/admin/appointments')}
+              className="text-xs font-medium text-primary hover:text-primary-dark transition-colors px-3 py-1.5 rounded-lg bg-primary-bg hover:bg-primary/10">
+              View All Appointments →
+            </button>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-xs text-text-muted">This Month</p>
-              <p className="text-lg font-bold text-text">{data?.thisMonth?.bookings || 0} bookings</p>
-              <p className="text-sm font-semibold" style={{ color: primaryColor }}>${(data?.thisMonth?.revenue || 0).toLocaleString(undefined, { minimumFractionDigits: 0 })}</p>
+          {todayApts.length === 0 ? (
+            <div className="text-center py-8 text-text-muted text-sm">
+              <p>No appointments scheduled for today.</p>
             </div>
-            <div>
-              <p className="text-xs text-text-muted">Last Month</p>
-              <p className="text-lg font-bold text-text">{data?.lastMonth?.bookings || 0} bookings</p>
-              <p className="text-sm text-text-secondary">${(data?.lastMonth?.revenue || 0).toLocaleString(undefined, { minimumFractionDigits: 0 })}</p>
-            </div>
-          </div>
-          {data?.growth != null && (
-            <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-border">
-              <Icon name={data.growth >= 0 ? 'arrowUp' : 'arrowDown'} className={`w-4 h-4 ${data.growth >= 0 ? 'text-green-500' : 'text-red-500'}`} />
-              <span className={`text-sm font-medium ${data.growth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {Math.abs(parseFloat(data.growth)).toFixed(1)}% revenue growth
-              </span>
+          ) : (
+            <div className="space-y-2">
+              {todayApts.map(apt => {
+                const aptDate = new Date(`${apt.date}T${apt.time}`);
+                return (
+                  <div key={apt.id} className="flex items-center gap-3 p-3 rounded-xl border border-border/70 hover:border-border hover:bg-surface-alt/30 transition-all">
+                    <div className="w-12 text-center flex-shrink-0">
+                      <p className="text-xs font-bold text-text">{aptDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</p>
+                    </div>
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
+                      style={{ backgroundColor: primaryColor }}>
+                      {(apt.user_name || '?').charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-text truncate">{apt.user_name}</p>
+                      <p className="text-xs text-text-muted truncate">{apt.service_name}{apt.staff_name ? ` · ${apt.staff_name}` : ''}</p>
+                    </div>
+                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                      apt.status === 'confirmed' ? 'bg-success-bg text-success border-green-200' :
+                      apt.status === 'completed' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                      'bg-gray-50 text-gray-500 border-gray-200'
+                    }`}>{apt.status}</span>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
 
-        <div className="bg-white rounded-xl border border-border p-5 shadow-sm">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ backgroundColor: primaryColor + '15' }}>
-              <Icon name="checkBadge" className="w-4 h-4" style={{ color: primaryColor }} />
+        {/* Revenue Insights */}
+        <div className="bg-white rounded-xl border border-border p-6 shadow-sm">
+          <div className="flex items-center gap-2.5 mb-4">
+            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center">
+              <Icon name="trending" className="w-4 h-4" />
             </div>
-            <span className="text-sm font-semibold text-text">Service Quality</span>
+            <div>
+              <h3 className="font-semibold text-text">Revenue Insights</h3>
+              <p className="text-xs text-text-muted">Monthly performance</p>
+            </div>
           </div>
-          <div className="space-y-3">
-            <div>
-              <div className="flex items-center justify-between text-sm mb-1">
-                <span className="text-text-secondary">Avg. Booking Value</span>
-                <span className="font-semibold text-text">${parseFloat(data?.avgValue || 0).toFixed(2)}</span>
-              </div>
-              <div className="w-full bg-gray-100 rounded-full h-2">
-                <div className="h-2 rounded-full transition-all" style={{ width: `${Math.min((data?.avgValue || 0) / 100 * 100, 100)}%`, backgroundColor: primaryColor }} />
-              </div>
-            </div>
-            <div>
-              <div className="flex items-center justify-between text-sm mb-1">
-                <span className="text-text-secondary">Retention Rate</span>
-                <span className="font-semibold text-text">{(data?.bookings && data?.customers ? (data.bookings / Math.max(data.customers, 1)).toFixed(1) : '0')}x</span>
-              </div>
-              <div className="w-full bg-gray-100 rounded-full h-2">
-                <div className="h-2 rounded-full bg-emerald-400 transition-all" style={{ width: `${Math.min((data?.bookings && data?.customers ? (data.bookings / Math.max(data.customers, 1)) * 20 : 0), 100)}%` }} />
+
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-3 rounded-xl bg-surface-alt/50">
+              <span className="text-sm text-text-secondary">This Month</span>
+              <div className="text-right">
+                <p className="text-lg font-bold text-text">${(data?.thisMonth?.revenue || 0).toLocaleString()}</p>
+                <p className="text-xs text-text-muted">{data?.thisMonth?.bookings || 0} bookings</p>
               </div>
             </div>
+            <div className="flex items-center justify-between p-3 rounded-xl bg-surface-alt/30">
+              <span className="text-sm text-text-secondary">Last Month</span>
+              <div className="text-right">
+                <p className="text-lg font-bold text-text">${(data?.lastMonth?.revenue || 0).toLocaleString()}</p>
+                <p className="text-xs text-text-muted">{data?.lastMonth?.bookings || 0} bookings</p>
+              </div>
+            </div>
+            <div className="flex items-center justify-between p-3 rounded-xl bg-surface-alt/30">
+              <span className="text-sm text-text-secondary">Avg. Value</span>
+              <div className="text-right">
+                <p className="text-lg font-bold text-text">${parseFloat(data?.avgValue || 0).toFixed(2)}</p>
+                <p className="text-xs text-text-muted">per booking</p>
+              </div>
+            </div>
+            {data?.totalRevenue > 0 && (
+              <div className="flex items-center justify-between p-3 rounded-xl bg-surface-alt/30">
+                <span className="text-sm text-text-secondary">All Time</span>
+                <div className="text-right">
+                  <p className="text-lg font-bold text-text">${data.totalRevenue.toLocaleString()}</p>
+                  <p className="text-xs text-text-muted">{data.totalBookings} total bookings</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {data?.bookingGrowth != null && (
+            <div className="flex items-center gap-1.5 mt-4 pt-3 border-t border-border">
+              <Icon name={data.bookingGrowth >= 0 ? 'arrowUp' : 'arrowDown'} className={`w-4 h-4 ${data.bookingGrowth >= 0 ? 'text-green-500' : 'text-red-500'}`} />
+              <span className={`text-xs font-medium ${data.bookingGrowth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {Math.abs(parseFloat(data.bookingGrowth)).toFixed(1)}% booking growth
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Recent Activity + Quick Actions ───── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Recent Activity */}
+        <div className="lg:col-span-2 bg-white rounded-xl border border-border p-6 shadow-sm">
+          <div className="flex items-center gap-2.5 mb-4">
+            <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 border border-purple-200 flex items-center justify-center">
+              <Icon name="clock" className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-text">Recent Activity</h3>
+              <p className="text-xs text-text-muted">Latest updates across your business</p>
+            </div>
+          </div>
+          <div className="space-y-1">
+            {[
+              { type: 'booking', text: `${data?.totalBookings || 0} total bookings across all services`, time: 'Lifetime' },
+              { type: 'customers', text: `${data?.activeCustomers || 0} active customers served`, time: 'All time' },
+              { type: 'revenue', text: `${data?.revenueThisMonth > 0 ? '$' + data.revenueThisMonth.toLocaleString() : '$0'} revenue this month`, time: 'MTD' },
+              { type: 'cancellations', text: `${data?.cancellations || 0} cancellations recorded`, time: 'All time' },
+              data?.revenueGrowth != null ? { type: 'growth', text: `Revenue ${data.revenueGrowth >= 0 ? 'grew' : 'declined'} by ${Math.abs(parseFloat(data.revenueGrowth)).toFixed(1)}%`, time: 'Period' } : null,
+            ].filter(Boolean).map((item, i) => (
+              <div key={i} className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-surface-alt/50 transition-all">
+                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                  item.type === 'booking' ? 'bg-blue-500' :
+                  item.type === 'customers' ? 'bg-purple-500' :
+                  item.type === 'revenue' ? 'bg-green-500' :
+                  item.type === 'growth' ? 'bg-emerald-500' :
+                  'bg-amber-500'
+                }`} />
+                <p className="flex-1 text-sm text-text truncate">{item.text}</p>
+                <span className="text-[10px] text-text-muted flex-shrink-0">{item.time}</span>
+              </div>
+            ))}
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-border p-5 shadow-sm">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ backgroundColor: primaryColor + '15' }}>
-              <Icon name="clock" className="w-4 h-4" style={{ color: primaryColor }} />
+        {/* Quick Actions */}
+        <div className="bg-white rounded-xl border border-border p-6 shadow-sm">
+          <div className="flex items-center gap-2.5 mb-4">
+            <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 border border-rose-200 flex items-center justify-center">
+              <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M8 3v10M3 8h10" strokeLinecap="round" />
+              </svg>
             </div>
-            <span className="text-sm font-semibold text-text">Production Overview</span>
+            <div>
+              <h3 className="font-semibold text-text">Quick Actions</h3>
+              <p className="text-xs text-text-muted">Common tasks</p>
+            </div>
           </div>
           <div className="space-y-2">
-            <div className="flex items-center justify-between py-1.5 border-b border-border/50 last:border-0">
-              <span className="text-sm text-text-secondary">Active Services</span>
-              <span className="text-sm font-semibold text-text">{data?.services || 0}</span>
-            </div>
-            <div className="flex items-center justify-between py-1.5 border-b border-border/50 last:border-0">
-              <span className="text-sm text-text-secondary">Team Size</span>
-              <span className="text-sm font-semibold text-text">{data?.staff || 0}</span>
-            </div>
-            <div className="flex items-center justify-between py-1.5 border-b border-border/50 last:border-0">
-              <span className="text-sm text-text-secondary">Appointments</span>
-              <span className="text-sm font-semibold text-text">{data?.appointments || 0}</span>
-            </div>
-            <div className="flex items-center justify-between py-1.5 border-b border-border/50 last:border-0">
-              <span className="text-sm text-text-secondary">Registered Users</span>
-              <span className="text-sm font-semibold text-text">{data?.totalUsers || 0}</span>
-            </div>
-            <div className="flex items-center justify-between py-1.5">
-              <span className="text-sm text-text-secondary">Cancellations</span>
-              <span className="text-sm font-semibold text-text">{data?.cancellations || 0}</span>
-            </div>
+            <button onClick={() => navigate('/admin/services')}
+              className="w-full flex items-center gap-3 p-3 rounded-xl border border-border hover:border-primary/30 hover:bg-primary-bg/20 transition-all text-left">
+              <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center flex-shrink-0">
+                <Icon name="services" className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-text">Add Service</p>
+                <p className="text-xs text-text-muted">Create a new service offering</p>
+              </div>
+            </button>
+            <button onClick={() => navigate('/admin/users')}
+              className="w-full flex items-center gap-3 p-3 rounded-xl border border-border hover:border-primary/30 hover:bg-primary-bg/20 transition-all text-left">
+              <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 border border-purple-200 flex items-center justify-center flex-shrink-0">
+                <Icon name="users" className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-text">Add Customer</p>
+                <p className="text-xs text-text-muted">Register a new customer</p>
+              </div>
+            </button>
+            <button onClick={() => navigate('/admin/coupons')}
+              className="w-full flex items-center gap-3 p-3 rounded-xl border border-border hover:border-primary/30 hover:bg-primary-bg/20 transition-all text-left">
+              <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center flex-shrink-0">
+                <Icon name="coupon" className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-text">Create Coupon</p>
+                <p className="text-xs text-text-muted">Launch a promotion or discount</p>
+              </div>
+            </button>
+            <button onClick={() => navigate('/admin/staff')}
+              className="w-full flex items-center gap-3 p-3 rounded-xl border border-border hover:border-primary/30 hover:bg-primary-bg/20 transition-all text-left">
+              <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center flex-shrink-0">
+                <Icon name="people" className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-text">Invite Staff</p>
+                <p className="text-xs text-text-muted">Add a team member</p>
+              </div>
+            </button>
+            <button onClick={() => navigate('/admin/appointments')}
+              className="w-full flex items-center gap-3 p-3 rounded-xl border border-border hover:border-primary/30 hover:bg-primary-bg/20 transition-all text-left">
+              <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 border border-rose-200 flex items-center justify-center flex-shrink-0">
+                <Icon name="calendar" className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-text">Add Appointment</p>
+                <p className="text-xs text-text-muted">Schedule a new booking</p>
+              </div>
+            </button>
           </div>
         </div>
       </div>
@@ -544,6 +631,9 @@ function SettingsTab() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
   const [loaded, setLoaded] = useState(false);
+  const [showTemplatePrompt, setShowTemplatePrompt] = useState(false);
+  const [importingTemplate, setImportingTemplate] = useState(false);
+  const [templateImportMsg, setTemplateImportMsg] = useState(null);
   const [serviceCategories, setServiceCategories] = useState([]);
 
   useEffect(() => {
@@ -590,6 +680,10 @@ function SettingsTab() {
         toast.success('Business settings saved!');
         setMessage({ type: 'success', text: 'Business settings saved successfully!' });
         refresh();
+        // Show template import prompt if business type is not 'custom'
+        if (form.business_type && form.business_type !== 'custom') {
+          setShowTemplatePrompt(true);
+        }
       } else {
         toast.error(data.error || 'Failed to save settings');
         setMessage({ type: 'error', text: data.error || 'Failed to save settings' });
@@ -625,6 +719,70 @@ function SettingsTab() {
             style={{ backgroundColor: form.primary_color }} />
         </div>
       </div>
+
+      {/* ── Template Import Prompt ───────────────── */}
+      {showTemplatePrompt && !templateImportMsg && (
+        <div className="mb-4 p-5 rounded-xl border border-primary/30 bg-primary-bg/30 animate-fade-in">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+              <svg className="w-5 h-5 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <h4 className="text-sm font-semibold text-text mb-1">Would you like to import recommended services and staff roles for this business type?</h4>
+              <p className="text-xs text-text-secondary mb-3">This will add suggested services (with pricing and durations) and staff role templates. Existing services with the same name will not be duplicated.</p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={async () => {
+                    setImportingTemplate(true);
+                    try {
+                      const res = await fetchWithAuth('/api/admin/templates/import', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ business_type: form.business_type }),
+                      });
+                      if (res.ok) {
+                        const data = await res.json();
+                        setTemplateImportMsg({ type: 'success', text: `Imported ${data.created?.services?.length || 0} services and ${data.created?.roles?.length || 0} staff role templates.` });
+                        refresh();
+                      } else {
+                        const data = await res.json().catch(() => ({}));
+                        setTemplateImportMsg({ type: 'error', text: data.error || 'Failed to import template' });
+                      }
+                    } catch (err) {
+                      setTemplateImportMsg({ type: 'error', text: err.message });
+                    }
+                    setImportingTemplate(false);
+                    setShowTemplatePrompt(false);
+                  }}
+                  disabled={importingTemplate}
+                  className="px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary-dark transition-all disabled:opacity-50 shadow-sm flex items-center gap-2"
+                >
+                  {importingTemplate ? (
+                    <><div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Importing...</>
+                  ) : 'Use Recommended Setup'}
+                </button>
+                <button onClick={() => setShowTemplatePrompt(false)}
+                  className="px-4 py-2 text-sm font-medium text-text-secondary border border-border rounded-xl hover:bg-surface-alt transition-all">
+                  Skip Setup
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Template import result message */}
+      {templateImportMsg && (
+        <div className={`mb-4 p-3.5 rounded-xl text-sm flex items-start gap-2.5 animate-fade-in ${
+          templateImportMsg.type === 'success' ? 'bg-success-bg border border-green-200 text-success' : 'bg-error-bg border border-red-200 text-error'
+        }`}>
+          <span className="mt-0.5">{templateImportMsg.type === 'success' ? '✅' : '⚠️'}</span>
+          <span>{templateImportMsg.text}</span>
+          <button onClick={() => setTemplateImportMsg(null)} className="ml-auto text-xs text-text-muted hover:text-text">Dismiss</button>
+        </div>
+      )}
 
       {message && (
         <div className={`mb-4 p-3.5 rounded-xl text-sm flex items-start gap-2.5 animate-fade-in ${
@@ -1060,10 +1218,10 @@ function UsersTab() {
   const { user: currentUser, fetchWithAuth } = useAuth();
   const toast = useToast();
   const [users, setUsers] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, user: null });
-  const [roleChange, setRoleChange] = useState({ open: false, user: null, newRole: '' });
   const [importOpen, setImportOpen] = useState(false);
 
   useEffect(() => { fetchUsers(); }, []);
@@ -1071,25 +1229,12 @@ function UsersTab() {
   async function fetchUsers() {
     setLoading(true);
     try {
-      const res = await fetchWithAuth('/api/admin/users');
+      const res = await fetchWithAuth('/api/admin/users?role=customer');
       const data = await res.json();
       if (res.ok) setUsers(data.users);
       else setError(data.error || 'Failed to load users');
     } catch (err) { setError(err.message); }
     finally { setLoading(false); }
-  }
-
-  async function handleRoleChange() {
-    const { user: target, newRole } = roleChange;
-    if (!target || !newRole) return;
-    try {
-      const res = await fetchWithAuth(`/api/admin/users/${target.id}/role`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: newRole }),
-      });
-      if (res.ok) {
-        toast.success(`User ${newRole === 'admin' ? 'promoted to' : 'demoted to'} ${newRole}`);
-        setRoleChange({ open: false, user: null, newRole: '' }); fetchUsers(); }
-    } catch { /* silent */ }
   }
 
   async function handleDelete() {
@@ -1117,8 +1262,28 @@ function UsersTab() {
           Import Customers
         </button>
       </div>
-      {users.length === 0 ? (
-        <EmptyBlock icon={<Icon name="users" className="w-6 h-6" />} title="No Users" message="No users registered yet." />
+      {/* Search input */}
+      <div className="mb-4">
+        <div className="relative">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+            <circle cx="9" cy="9" r="6" /><path d="M13.5 13.5l4 4" />
+          </svg>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search customers..."
+            className="w-full pl-10 pr-4 py-2.5 bg-surface-warm border border-border rounded-xl text-sm transition-all"
+          />
+        </div>
+      </div>
+
+      {(searchQuery ? users.filter(u =>
+        u.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        u.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        u.phone?.toLowerCase().includes(searchQuery.toLowerCase())
+      ) : users).length === 0 ? (
+        <EmptyBlock icon={<Icon name="users" className="w-6 h-6" />} title="No Users" message={searchQuery ? 'No customers match your search.' : 'No users registered yet.'} />
       ) : (
         <div className="overflow-x-auto -mx-6">
           <table className="w-full text-sm">
@@ -1133,7 +1298,11 @@ function UsersTab() {
               </tr>
             </thead>
             <tbody>
-              {users.map(u => (
+              {(searchQuery ? users.filter(u =>
+                u.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                u.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                u.phone?.toLowerCase().includes(searchQuery.toLowerCase())
+              ) : users).map(u => (
                 <tr key={u.id} className="border-b border-border/50 hover:bg-surface-alt/30 transition-colors">
                   <td className="py-3 px-6">
                     <div className="flex items-center gap-2.5">
@@ -1158,8 +1327,6 @@ function UsersTab() {
                   <td className="py-3 px-6 text-right">
                     {u.id !== currentUser?.id && (
                       <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => setRoleChange({ open: true, user: u, newRole: u.role === 'admin' ? 'customer' : 'admin' })}
-                          className="px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary-bg rounded-lg transition-colors">{u.role === 'admin' ? 'Demote' : 'Promote'}</button>
                         <button onClick={() => setDeleteConfirm({ open: true, user: u })}
                           className="px-2.5 py-1.5 text-xs font-medium text-error hover:bg-error-bg rounded-lg transition-colors">Delete</button>
                       </div>
@@ -1171,13 +1338,6 @@ function UsersTab() {
           </table>
         </div>
       )}
-
-      <ConfirmDialog open={roleChange.open}
-        title={roleChange.newRole === 'admin' ? 'Promote to Admin?' : 'Demote to Customer?'}
-        message={roleChange.user ? `${roleChange.newRole === 'admin' ? 'Promote' : 'Demote'} "${roleChange.user.name}" (${roleChange.user.email}) to ${roleChange.newRole}?` : ''}
-        confirmLabel={roleChange.newRole === 'admin' ? 'Yes, Promote' : 'Yes, Demote'} cancelLabel="Cancel"
-        variant={roleChange.newRole === 'admin' ? 'primary' : 'warning'}
-        onConfirm={handleRoleChange} onCancel={() => setRoleChange({ open: false, user: null, newRole: '' })} />
 
       <ConfirmDialog open={deleteConfirm.open} title="Delete User?"
         message={deleteConfirm.user ? `Permanently delete "${deleteConfirm.user.name}" and all their appointments?` : ''}
@@ -1203,13 +1363,35 @@ function StaffTab() {
   const { fetchWithAuth, user } = useAuth();
   const toast = useToast();
   const [staff, setStaff] = useState([]);
-  const [users, setUsers] = useState([]);
+  const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [staffSearch, setStaffSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [availModal, setAvailModal] = useState({ open: false, staff: null });
+  const [promoteConfirm, setPromoteConfirm] = useState({ open: false, member: null });
+  
+  // Add Staff form state
+  const [staffForm, setStaffForm] = useState({
+    firstName: '', lastName: '', email: '', phone: '', role: '', serviceIds: []
+  });
+  const [staffFormError, setStaffFormError] = useState('');
+  const [staffFormSubmitting, setStaffFormSubmitting] = useState(false);
 
-  useEffect(() => { fetchStaff(); fetchUsers(); }, []);
+  const STAFF_ROLES = [
+    { id: 'stylist', label: 'Stylist' },
+    { id: 'barber', label: 'Barber' },
+    { id: 'massage-therapist', label: 'Massage Therapist' },
+    { id: 'esthetician', label: 'Esthetician' },
+    { id: 'nail-tech', label: 'Nail Technician' },
+    { id: 'trainer', label: 'Trainer' },
+    { id: 'therapist', label: 'Therapist' },
+    { id: 'technician', label: 'Technician' },
+    { id: 'consultant', label: 'Consultant' },
+    { id: 'specialist', label: 'Specialist' },
+  ];
+
+  useEffect(() => { fetchStaff(); fetchServices(); }, []);
 
   async function fetchStaff() {
     setLoading(true);
@@ -1222,24 +1404,61 @@ function StaffTab() {
     finally { setLoading(false); }
   }
 
-  async function fetchUsers() {
+  async function fetchServices() {
     try {
-      const res = await fetchWithAuth('/api/admin/users');
+      const res = await fetchWithAuth('/api/admin/services');
       const d = await res.json();
-      if (res.ok) setUsers(d.users || []);
+      if (res.ok) setServices(d.services || []);
     } catch { /* silent */ }
   }
 
-  async function handleCreate(userId) {
+  async function handleCreateStaff(e) {
+    e.preventDefault();
+    setStaffFormError('');
+    const { firstName, lastName, email, phone, role, serviceIds } = staffForm;
+    if (!firstName.trim() || !lastName.trim() || !email.trim()) {
+      setStaffFormError('First name, last name, and email are required');
+      return;
+    }
+    setStaffFormSubmitting(true);
     try {
-      const res = await fetchWithAuth('/api/staff/admin', {
+      // 1) Create user as staff via admin endpoint
+      const userRes = await fetchWithAuth('/api/admin/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId }),
+        body: JSON.stringify({ name: `${firstName.trim()} ${lastName.trim()}`, email: email.trim(), role: 'staff' }),
       });
-      if (res.ok) { toast.success('Staff member added'); fetchStaff(); setFormOpen(false); }
-      else { const d = await res.json(); toast.error(d.error); }
-    } catch (err) { toast.error(err.message); }
+      const userData = await userRes.json();
+      if (!userRes.ok) { setStaffFormError(userData.error || 'Failed to create user'); setStaffFormSubmitting(false); return; }
+      const userId = userData.user.id;
+
+      // 2) Add as staff member
+      const staffRes = await fetchWithAuth('/api/staff/admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, title: role || null, phone: phone.trim() || null }),
+      });
+      const staffData = await staffRes.json();
+      if (!staffRes.ok) { setStaffFormError(staffData.error || 'Failed to add staff'); setStaffFormSubmitting(false); return; }
+      const newStaffId = staffData.staff?.id;
+
+      // 3) Assign services if any selected
+      if (newStaffId && serviceIds.length > 0) {
+        await fetchWithAuth(`/api/staff/admin/${newStaffId}/services`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ service_ids: serviceIds }),
+        });
+      }
+
+      toast.success('Staff member added successfully');
+      setFormOpen(false);
+      setStaffForm({ firstName: '', lastName: '', email: '', phone: '', role: '', serviceIds: [] });
+      fetchStaff();
+    } catch (err) {
+      setStaffFormError(err.message);
+    }
+    setStaffFormSubmitting(false);
   }
 
   async function handleToggleActive(member) {
@@ -1253,10 +1472,42 @@ function StaffTab() {
     } catch { /* silent */ }
   }
 
+  async function handlePromoteToAdmin() {
+    const member = promoteConfirm.member;
+    if (!member) return;
+    try {
+      const res = await fetchWithAuth(`/api/admin/users/${member.user_id}/role`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: 'admin' }),
+      });
+      if (res.ok) {
+        toast.success(`${member.name} promoted to admin`);
+        setPromoteConfirm({ open: false, member: null });
+        fetchStaff();
+      }
+    } catch { /* silent */ }
+  }
+
+  function toggleService(id) {
+    setStaffForm(prev => ({
+      ...prev,
+      serviceIds: prev.serviceIds.includes(id)
+        ? prev.serviceIds.filter(sid => sid !== id)
+        : [...prev.serviceIds, id],
+    }));
+  }
+
   if (loading) return <Spinner />;
   if (error) return <ErrorBlock message={error} onRetry={fetchStaff} />;
 
-  const nonStaffUsers = users.filter(u => !staff.some(s => s.user_id === u.id) && u.id !== user?.id);
+  const filteredStaff = staffSearch
+    ? staff.filter(m =>
+        m.name?.toLowerCase().includes(staffSearch.toLowerCase()) ||
+        m.email?.toLowerCase().includes(staffSearch.toLowerCase()) ||
+        (m.title || '').toLowerCase().includes(staffSearch.toLowerCase())
+      )
+    : staff;
 
   return (
     <div>
@@ -1265,18 +1516,38 @@ function StaffTab() {
           <h2 className="text-xl font-serif font-bold text-text">Staff Management</h2>
           <p className="text-sm text-text-secondary">{staff.length} staff members</p>
         </div>
-        <button onClick={() => setFormOpen(true)}
+        <button onClick={() => {
+          setStaffForm({ firstName: '', lastName: '', email: '', phone: '', role: '', serviceIds: [] });
+          setStaffFormError('');
+          setFormOpen(true);
+        }}
           className="px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary-dark transition-all shadow-sm flex items-center gap-1.5">
           <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3v10M3 8h10" strokeLinecap="round" /></svg>
           Add Staff
         </button>
       </div>
 
-      {staff.length === 0 ? (
-        <EmptyBlock icon={<Icon name="people" className="w-6 h-6" />} title="No Staff" message="Add team members so customers can book with specific providers." />
+      {/* Search input */}
+      <div className="mb-4">
+        <div className="relative">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+            <circle cx="9" cy="9" r="6" /><path d="M13.5 13.5l4 4" />
+          </svg>
+          <input
+            type="text"
+            value={staffSearch}
+            onChange={e => setStaffSearch(e.target.value)}
+            placeholder="Search staff..."
+            className="w-full pl-10 pr-4 py-2.5 bg-surface-warm border border-border rounded-xl text-sm transition-all"
+          />
+        </div>
+      </div>
+
+      {filteredStaff.length === 0 ? (
+        <EmptyBlock icon={<Icon name="people" className="w-6 h-6" />} title="No Staff" message={staffSearch ? 'No staff match your search.' : 'Add team members so customers can book with specific providers.'} />
       ) : (
         <div className="space-y-3">
-          {staff.map(m => (
+          {filteredStaff.map(m => (
             <div key={m.id} className="bg-white rounded-xl border border-border p-4 flex items-center gap-4 hover:shadow-sm transition-all">
               <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold"
                 style={{ backgroundColor: m.color || '#6366f1' }}>
@@ -1297,6 +1568,12 @@ function StaffTab() {
                   className="px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary-bg rounded-lg transition-colors">
                   Schedule
                 </button>
+                {m.role !== 'admin' && (
+                  <button onClick={() => setPromoteConfirm({ open: true, member: m })}
+                    className="px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary-bg rounded-lg transition-colors">
+                    Promote
+                  </button>
+                )}
                 <button onClick={() => handleToggleActive(m)}
                   className={`px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors ${m.is_active ? 'text-warning hover:bg-warning-bg' : 'text-success hover:bg-success-bg'}`}>
                   {m.is_active ? 'Deactivate' : 'Activate'}
@@ -1307,35 +1584,100 @@ function StaffTab() {
         </div>
       )}
 
+      {/* ── Add Staff Modal ──────────────────── */}
       {formOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setFormOpen(false)} />
-          <div className="relative bg-white rounded-2xl shadow-xl border border-border w-full max-w-md animate-scale-in p-6">
-            <h3 className="text-lg font-serif font-bold text-text mb-4">Add Staff Member</h3>
-            {nonStaffUsers.length === 0 ? (
-              <p className="text-text-secondary text-sm">All users are already staff members.</p>
-            ) : (
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {nonStaffUsers.map(u => (
-                  <button key={u.id} onClick={() => handleCreate(u.id)}
-                    className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-surface-alt border border-border transition-all text-left">
-                    <span className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center text-xs font-bold">
-                      {u.name.charAt(0).toUpperCase()}
-                    </span>
-                    <div>
-                      <p className="font-medium text-text text-sm">{u.name}</p>
-                      <p className="text-xs text-text-muted">{u.email}</p>
-                    </div>
-                  </button>
-                ))}
+          <div className="relative bg-white rounded-2xl shadow-xl border border-border w-full max-w-lg animate-scale-in overflow-hidden">
+            <div className="px-6 py-5 border-b border-border flex items-center justify-between bg-surface-warm">
+              <h3 className="text-lg font-serif font-bold text-text">Add Staff Member</h3>
+              <button onClick={() => setFormOpen(false)} className="w-8 h-8 rounded-xl text-text-muted hover:text-text hover:bg-surface-alt transition-all flex items-center justify-center">
+                <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4l8 8M12 4l-8 8" strokeLinecap="round" /></svg>
+              </button>
+            </div>
+            <form onSubmit={handleCreateStaff} className="p-6 space-y-4">
+              {staffFormError && (
+                <div className="p-3.5 bg-error-bg border border-red-200 rounded-xl text-sm text-error flex items-start gap-2.5">
+                  <span className="mt-0.5">⚠️</span><span>{staffFormError}</span>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-text mb-1">First Name *</label>
+                  <input type="text" value={staffForm.firstName} onChange={e => setStaffForm({ ...staffForm, firstName: e.target.value })}
+                    className="w-full px-4 py-2.5 bg-surface-warm border border-border rounded-xl text-sm transition-all" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-text mb-1">Last Name *</label>
+                  <input type="text" value={staffForm.lastName} onChange={e => setStaffForm({ ...staffForm, lastName: e.target.value })}
+                    className="w-full px-4 py-2.5 bg-surface-warm border border-border rounded-xl text-sm transition-all" />
+                </div>
               </div>
-            )}
-            <button onClick={() => setFormOpen(false)} className="mt-4 w-full py-2.5 rounded-xl border border-border text-text-secondary text-sm font-medium hover:bg-surface-alt transition-all">
-              Cancel
-            </button>
+              <div>
+                <label className="block text-sm font-medium text-text mb-1">Email *</label>
+                <input type="email" value={staffForm.email} onChange={e => setStaffForm({ ...staffForm, email: e.target.value })}
+                  placeholder="staff@example.com"
+                  className="w-full px-4 py-2.5 bg-surface-warm border border-border rounded-xl text-sm transition-all" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-text mb-1">Phone Number</label>
+                <input type="tel" value={staffForm.phone} onChange={e => setStaffForm({ ...staffForm, phone: e.target.value })}
+                  placeholder="+1 (555) 000-0000"
+                  className="w-full px-4 py-2.5 bg-surface-warm border border-border rounded-xl text-sm transition-all" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-text mb-1">Role</label>
+                <select value={staffForm.role} onChange={e => setStaffForm({ ...staffForm, role: e.target.value })}
+                  className="w-full px-4 py-2.5 bg-surface-warm border border-border rounded-xl text-sm transition-all">
+                  <option value="">Select a role...</option>
+                  {STAFF_ROLES.map(r => (
+                    <option key={r.id} value={r.label}>{r.label}</option>
+                  ))}
+                </select>
+              </div>
+              {services.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-text mb-1">Services Assigned</label>
+                  <div className="border border-border rounded-xl p-3 max-h-40 overflow-y-auto space-y-1.5">
+                    {services.filter(s => s.is_active).map(s => (
+                      <label key={s.id} className="flex items-center gap-2.5 cursor-pointer p-1.5 rounded-lg hover:bg-surface-alt/50 transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={staffForm.serviceIds.includes(s.id)}
+                          onChange={() => toggleService(s.id)}
+                          className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+                        />
+                        <span className="text-sm text-text">{s.name}</span>
+                        <span className="text-xs text-text-muted ml-auto">${parseFloat(s.price).toFixed(2)}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {services.length === 0 && (
+                <p className="text-xs text-text-muted italic">No active services available. Create services first.</p>
+              )}
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setFormOpen(false)}
+                  className="flex-1 py-2.5 px-4 rounded-xl text-sm font-medium text-text-secondary border border-border hover:bg-surface-alt transition-all">
+                  Cancel
+                </button>
+                <button type="submit" disabled={staffFormSubmitting}
+                  className="flex-1 py-2.5 px-4 rounded-xl text-sm font-medium text-white bg-primary hover:bg-primary-dark transition-all disabled:opacity-50 shadow-sm">
+                  {staffFormSubmitting ? 'Saving...' : 'Save Staff'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
+
+      {/* ── Promote Confirmation ─────────────── */}
+      <ConfirmDialog open={promoteConfirm.open}
+        title="Promote to Admin?"
+        message={promoteConfirm.member ? `Promote "${promoteConfirm.member.name}" (${promoteConfirm.member.email}) to admin? They will gain full access to all settings.` : ''}
+        confirmLabel="Yes, Promote" cancelLabel="Cancel" variant="primary"
+        onConfirm={handlePromoteToAdmin} onCancel={() => setPromoteConfirm({ open: false, member: null })} />
 
       {availModal.open && (
         <ScheduleModal
@@ -1427,259 +1769,64 @@ function ScheduleModal({ staff, onClose }) {
 // ─── Coupons Tab ────────────────────────────
 
 function CouponsTab() {
-  const { fetchWithAuth } = useAuth();
+  const { fetchWithAuth, user } = useAuth();
   const toast = useToast();
   const [coupons, setCoupons] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [formOpen, setFormOpen] = useState(false);
-  // editing state managed via setEditing
-  // eslint-disable-next-line no-unused-vars
-  const [, setEditing] = useState(null);
 
-  useEffect(() => { fetchCoupons(); }, []);
-
-  async function fetchCoupons() {
-    setLoading(true);
-    try {
-      const res = await fetchWithAuth('/api/coupons/admin');
-      const d = await res.json();
-      if (res.ok) setCoupons(d.coupons || []);
-      else setError(d.error || 'Failed to load coupons');
-    } catch (err) { setError(err.message); }
-    finally { setLoading(false); }
-  }
-
-  async function handleToggle(coupon) {
-    try {
-      await fetchWithAuth(`/api/coupons/admin/${coupon.id}`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_active: !coupon.is_active }),
-      });
-      fetchCoupons();
-    } catch { /* silent */ }
-  }
-
-  async function handleCreate(data) {
-    try {
-      const res = await fetchWithAuth('/api/coupons/admin', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
-      });
-      if (res.ok) { toast.success('Coupon created'); setFormOpen(false); fetchCoupons(); }
-      else { const d = await res.json(); toast.error(d.error); }
-    } catch (err) { toast.error(err.message); }
-  }
-
-  if (loading) return <Spinner />;
-  if (error) return <ErrorBlock message={error} onRetry={fetchCoupons} />;
-
-  const active = coupons.filter(c => c.is_active);
-  const inactive = coupons.filter(c => !c.is_active);
-
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-xl font-serif font-bold text-text">Discount Coupons</h2>
-          <p className="text-sm text-text-secondary">{active.length} active, {inactive.length} inactive</p>
-        </div>
-        <button onClick={() => setFormOpen(true)}
-          className="px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary-dark transition-all shadow-sm flex items-center gap-1.5">
-          <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3v10M3 8h10" strokeLinecap="round" /></svg>
-          New Coupon
-        </button>
-      </div>
-
-      {coupons.length === 0 ? (
-        <EmptyBlock icon={<Icon name="coupon" className="w-6 h-6" />} title="No Coupons" message="Create discount codes to attract more customers." />
-      ) : (
-        <div className="space-y-2">
-          {coupons.map(c => (
-            <div key={c.id} className={`bg-white rounded-xl border p-4 flex items-center gap-4 ${!c.is_active ? 'opacity-50 border-dashed' : 'border-border'}`}>
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${c.is_active ? 'bg-primary-bg' : 'bg-gray-50'}`}>
-                <Icon name="coupon" className="w-5 h-5 text-primary" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-mono font-bold text-text">{c.code}</span>
-                  <span className="text-sm font-medium text-primary">
-                    {c.discount_type === 'percentage' ? `${c.discount_value}% OFF` : `$${c.discount_value.toFixed(2)} OFF`}
-                  </span>
-                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${c.is_active ? 'bg-success-bg text-success border-green-200' : 'bg-gray-50 text-gray-500 border-gray-200'}`}>
-                    {c.is_active ? 'Active' : 'Inactive'}
-                  </span>
-                </div>
-                <div className="text-xs text-text-muted mt-0.5">
-                  Used {c.current_uses || 0}/{c.max_uses || '∞'} times
-                  {c.valid_until ? ` · Expires ${new Date(c.valid_until).toLocaleDateString()}` : ' · No expiry'}
-                </div>
-              </div>
-              <button onClick={() => handleToggle(c)}
-                className={`px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors ${c.is_active ? 'text-warning hover:bg-warning-bg' : 'text-success hover:bg-success-bg'}`}>
-                {c.is_active ? 'Deactivate' : 'Activate'}
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {formOpen && <CouponFormModal onClose={() => setFormOpen(false)} onCreate={handleCreate} />}
-    </div>
-  );
-}
-
-// ─── Coupon Form Modal ─────────────────────
-
-function CouponFormModal({ onClose, onCreate }) {
-  const [form, setForm] = useState({
-    code: '', discount_type: 'percentage', discount_value: 10,
-    min_appointment_amount: 0, max_uses: 0, max_uses_per_user: 1,
-    valid_from: '', valid_until: '', description: '',
-  });
-  const [submitting, setSubmitting] = useState(false);
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    if (!form.code.trim()) return;
-    setSubmitting(true);
-    await onCreate({
-      ...form,
-      valid_from: form.valid_from || null,
-      valid_until: form.valid_until || null,
-      description: form.description || null,
-    });
-    setSubmitting(false);
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-xl border border-border w-full max-w-md animate-scale-in p-6">
-        <h3 className="text-lg font-serif font-bold text-text mb-4">Create Coupon</h3>
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <div>
-            <label className="block text-sm font-medium text-text mb-1">Code *</label>
-            <input type="text" value={form.code} onChange={e => setForm({ ...form, code: e.target.value.toUpperCase() })}
-              className="w-full px-4 py-2.5 bg-surface-warm border border-border rounded-xl text-sm font-mono" placeholder="SUMMER20" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-text mb-1">Type</label>
-              <select value={form.discount_type} onChange={e => setForm({ ...form, discount_type: e.target.value })}
-                className="w-full px-3 py-2.5 bg-surface-warm border border-border rounded-xl text-sm">
-                <option value="percentage">Percentage</option>
-                <option value="fixed_amount">Fixed Amount</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-text mb-1">Value</label>
-              <input type="number" min={1} max={form.discount_type === 'percentage' ? 100 : 9999}
-                value={form.discount_value} onChange={e => setForm({ ...form, discount_value: parseFloat(e.target.value) || 0 })}
-                className="w-full px-4 py-2.5 bg-surface-warm border border-border rounded-xl text-sm" />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-text mb-1">Valid From</label>
-              <input type="date" value={form.valid_from} onChange={e => setForm({ ...form, valid_from: e.target.value })}
-                className="w-full px-4 py-2.5 bg-surface-warm border border-border rounded-xl text-sm" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-text mb-1">Valid Until</label>
-              <input type="date" value={form.valid_until} onChange={e => setForm({ ...form, valid_until: e.target.value })}
-                className="w-full px-4 py-2.5 bg-surface-warm border border-border rounded-xl text-sm" />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-text mb-1">Max Uses</label>
-              <input type="number" min={0} value={form.max_uses} onChange={e => setForm({ ...form, max_uses: parseInt(e.target.value) || 0 })}
-                className="w-full px-4 py-2.5 bg-surface-warm border border-border rounded-xl text-sm" placeholder="0 = unlimited" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-text mb-1">Per User</label>
-              <input type="number" min={1} value={form.max_uses_per_user} onChange={e => setForm({ ...form, max_uses_per_user: parseInt(e.target.value) || 1 })}
-                className="w-full px-4 py-2.5 bg-surface-warm border border-border rounded-xl text-sm" />
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-text mb-1">Description</label>
-            <input type="text" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })}
-              className="w-full px-4 py-2.5 bg-surface-warm border border-border rounded-xl text-sm" placeholder="Summer Sale - 20% off" />
-          </div>
-          <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose}
-              className="flex-1 py-2.5 rounded-xl border border-border text-text-secondary text-sm font-medium hover:bg-surface-alt transition-all">Cancel</button>
-            <button type="submit" disabled={submitting}
-              className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary-dark transition-all disabled:opacity-50 shadow-sm">
-              {submitting ? 'Creating...' : 'Create Coupon'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-// ─── Main Admin Dashboard ──────────────────
-
-export default function AdminDashboard() {
-  const { user, fetchWithAuth } = useAuth();
-  const { settings } = useBusiness();
-  const [tab, setTab] = useState('story');
-  const [stats, setStats] = useState({ services: 0, appointments: 0, users: 0, staff: 0, coupons: 0, revenue: 0, customers: 0 });
-  const [loadingStats, setLoadingStats] = useState(true);
-
-  const tabs = [
-    { id: 'story', label: 'Story', icon: 'storyline' },
-    { id: 'settings', label: 'Settings', icon: 'settings' },
-    { id: 'staff', label: 'Staff', icon: 'people' },
-    { id: 'services', label: 'Services', icon: 'services' },
-    { id: 'finance', label: 'Finance', icon: 'finance' },
-    { id: 'developer', label: 'Developer', icon: 'developer' },
-    { id: 'ical', label: 'Calendar', icon: 'ical' },
-    { id: 'public', label: 'Public Pages', icon: 'public' },
-    { id: 'widget', label: 'Widgets', icon: 'widget' },
-    { id: 'coupons', label: 'Coupons', icon: 'coupon' },
-    { id: 'analytics', label: 'Analytics', icon: 'analytics' },
-    { id: 'appointments', label: 'Appointments', icon: 'calendar' },
-    { id: 'users', label: 'Users', icon: 'users' },
-  ];
-
-  async function fetchStats() {
-    try {
-      const [svcRes, aptRes, usrRes, staffRes, coupRes, anlRes] = await Promise.all([
-        fetchWithAuth('/api/admin/services'),
-        fetchWithAuth('/api/admin/appointments?limit=1'),
-        fetchWithAuth('/api/admin/users'),
-        fetchWithAuth('/api/staff/admin'),
-        fetchWithAuth('/api/coupons/admin'),
-        fetchWithAuth('/api/analytics/summary?period=all'),
-      ]);
-      const svc = await svcRes.json();
-      const apt = await aptRes.json();
-      const usr = await usrRes.json();
-      const stf = await staffRes.json();
-      const cp = await coupRes.json();
-      const anl = anlRes.ok ? await anlRes.json() : { summary: {} };
-      setStats({
-        services: svc.services?.filter(s => s.is_active).length || 0,
-        appointments: apt.pagination?.total || 0,
-        users: usr.users?.length || 0,
-        staff: stf.staff?.length || 0,
-        coupons: cp.coupons?.filter(c => c.is_active).length || 0,
-        revenue: anl.summary?.total_revenue || 0,
-        customers: anl.summary?.active_customers || 0,
-      });
-    } catch { /* silent */ }
-    setLoadingStats(false);
-  }
-
-  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    if (user?.role === 'admin') fetchStats();
+    async function load() {
+      setLoading(true);
+      try {
+        const res = await fetchWithAuth('/api/admin/coupons');
+        const ct = res.headers.get('content-type') || '';
+        if (!ct.includes('application/json')) {
+          console.warn('Coupons API: Expected JSON, got', ct, '| Status:', res.status);
+          setError('Unable to load dashboard data');
+          setLoading(false);
+          return;
+        }
+        const data = await res.json();
+        if (!res.ok) {
+          console.warn('Coupons API: Status', res.status, data);
+          setError(data.error || 'Unable to load dashboard data');
+          setLoading(false);
+          return;
+        }
+        if (!data || !Array.isArray(data.coupons)) {
+          console.warn('Coupons API: Response shape invalid', data);
+          setError('Unable to load dashboard data');
+          setLoading(false);
+          return;
+        }
+        setCoupons(data.coupons);
+      } catch (err) {
+        console.warn('Coupons API: Network error', err.message);
+        setError('Unable to load dashboard data. Please try again.');
+      }
+      setLoading(false);
+    }
+    if (user?.role === 'admin') load();
+    else setLoading(false);
   }, [user]);
-  /* eslint-enable react-hooks/set-state-in-effect */
+
+  async function handleToggleActive(coupon) {
+    try {
+      const res = await fetchWithAuth(`/api/admin/coupons/${coupon.id}/toggle`, { method: 'POST' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        console.warn('Coupons toggle API: Status', res.status, data);
+        toast.error(data.error || 'Unable to update coupon');
+        return;
+      }
+      toast.success(coupon.is_active ? 'Coupon deactivated' : 'Coupon reactivated');
+      setCoupons(prev => prev.map(c => c.id === coupon.id ? { ...c, is_active: !c.is_active } : c));
+    } catch (err) {
+      console.warn('Coupons toggle API: Network error', err.message);
+      toast.error('Unable to update coupon. Please try again.');
+    }
+  }
 
   if (!user || user.role !== 'admin') {
     return (
@@ -1698,73 +1845,356 @@ export default function AdminDashboard() {
     );
   }
 
-  const primaryColor = settings?.primary_color || '#e11d48';
-  const accentBg = (opacity = '15') => `${primaryColor}${opacity}`;
+  if (loading) return <Spinner />;
+  if (error) return <ErrorBlock message={error} onRetry={() => window.location.reload()} />;
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 animate-fade-in">
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center gap-2 mb-3">
-          <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ backgroundColor: primaryColor }}>
-            <svg className="w-3.5 h-3.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>
-          </div>
-          <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: primaryColor }}>Administration</span>
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-xl font-serif font-bold text-text">Coupon Management</h2>
+          <p className="text-sm text-text-secondary">{coupons.length} coupon{coupons.length !== 1 ? 's' : ''}</p>
         </div>
-        <h1 className="text-3xl sm:text-4xl font-serif font-bold text-text tracking-tight">Dashboard</h1>
-        <p className="text-text-secondary mt-1">Your business story — from services to revenue</p>
       </div>
-
-      {/* Bento-grid Stats Cards */}
-      {!loadingStats && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-8">
-          {[
-            { tab: 'settings', label: 'Business', icon: 'settings', value: settings?.business_name || 'My Business', sub: settings?.business_type || 'salon', small: true },
-            { tab: 'staff', label: 'Team', icon: 'people', value: stats.staff, sub: 'Staff members' },
-            { tab: 'services', label: 'Services', icon: 'services', value: stats.services, sub: 'Active services' },
-            { tab: 'appointments', label: 'Production', icon: 'calendar', value: stats.appointments, sub: 'Appointments' },
-            { tab: 'coupons', label: 'Promotions', icon: 'coupon', value: stats.coupons, sub: 'Active coupons' },
-            { tab: 'analytics', label: 'Revenue', icon: 'dollar', value: `$${stats.revenue > 0 ? parseFloat(stats.revenue).toLocaleString(undefined, { minimumFractionDigits: 0 }) : '0'}`, sub: stats.customers > 0 ? `${stats.customers} customers` : 'Total revenue' },
-          ].map(card => (
-            <div key={card.tab} role="button" tabIndex={0}
-              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { setTab(card.tab); } }}
-              onClick={() => setTab(card.tab)}
-              className="bg-white rounded-xl border border-border p-4 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50 flex flex-col">
-              <div className="flex items-center gap-2.5 mb-2">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: accentBg() }}>
-                  <Icon name={card.icon} className="w-4 h-4" style={{ color: primaryColor }} />
-                </div>
-                <span className="text-xs text-text-muted">{card.label}</span>
+      {coupons.length === 0 ? (
+        <EmptyBlock icon={<Icon name="coupon" className="w-6 h-6" />} title="No Coupons" message="Create a coupon to offer discounts and promotions." />
+      ) : (
+        <div className="space-y-3">
+          {coupons.map(c => (
+            <div key={c.id} className="bg-white rounded-xl border border-border p-4 flex items-center gap-4 hover:shadow-sm transition-all">
+              <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center flex-shrink-0">
+                <Icon name="coupon" className="w-5 h-5 text-amber-600" />
               </div>
-              <p className={`font-bold text-text mt-auto ${card.small ? 'text-sm' : 'text-2xl'}`}>{card.value}</p>
-              <p className="text-xs text-text-muted">{card.sub}</p>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-text">{c.code}</span>
+                  <span className="text-xs font-medium text-primary">{c.discount_type === 'percentage' ? `${c.discount_value}%` : `$${c.discount_value}`} off</span>
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${c.is_active ? 'bg-success-bg text-success border-green-200' : 'bg-gray-50 text-gray-500 border-gray-200'}`}>
+                    {c.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
+                {c.description && <p className="text-xs text-text-muted mt-0.5">{c.description}</p>}
+                <p className="text-xs text-text-muted mt-0.5">
+                  {c.usage_count || 0} uses{c.max_uses ? ` / ${c.max_uses} max` : ''} · {c.min_appointment_value ? `Min $${c.min_appointment_value}` : 'No minimum'}
+                </p>
+              </div>
+              <button onClick={() => handleToggleActive(c)}
+                className={`px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors ${c.is_active ? 'text-warning hover:bg-warning-bg' : 'text-success hover:bg-success-bg'}`}>
+                {c.is_active ? 'Deactivate' : 'Activate'}
+              </button>
             </div>
           ))}
         </div>
       )}
+    </div>
+  );
+}
 
-      {/* Tab Navigation — cleaner, SVG icons */}
-      <div className="flex items-center gap-1 mb-6 bg-white rounded-2xl border border-border p-1 shadow-sm overflow-x-auto">
-        {tabs.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
-            className={`flex items-center gap-1.5 py-2 px-3 rounded-xl text-xs font-medium whitespace-nowrap transition-all duration-200 ${
-              tab === t.id
-                ? 'text-white shadow-sm'
-                : 'text-text-secondary hover:text-text hover:bg-surface-alt'
-            }`}
-            style={tab === t.id ? { backgroundColor: primaryColor } : {}}>
-            <Icon name={t.icon} className="w-3.5 h-3.5" />
-            {t.label}
+// ─── Templates Tab ──────────────────────────
+
+function TemplatesTab() {
+  const { fetchWithAuth } = useAuth();
+  const toast = useToast();
+  const [templates, setTemplates] = useState([]);
+  const [disabled, setDisabled] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [editModal, setEditModal] = useState({ open: false, id: '', label: '', roles: '', services: '', isNew: false });
+  const [loadingTemplate, setLoadingTemplate] = useState(false);
+
+  useEffect(() => { fetchTemplates(); }, []);
+
+  function fetchTemplates() {
+    setLoading(true);
+    Promise.all([
+      fetchWithAuth('/api/admin/templates'),
+      fetchWithAuth('/api/admin/templates/disabled'),
+    ]).then(async ([tplRes, disRes]) => {
+      const tplData = tplRes.ok ? await tplRes.json() : { templates: [] };
+      const disData = disRes.ok ? await disRes.json() : { disabled: [] };
+      setTemplates(tplData.templates || []);
+      setDisabled(disData.disabled || []);
+    }).catch(err => setError(err.message))
+    .finally(() => setLoading(false));
+  }
+
+  async function importTemplate(businessType) {
+    try {
+      const res = await fetchWithAuth('/api/admin/templates/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ business_type: businessType }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        toast.success(data.message || 'Template imported');
+      } else {
+        const d = await res.json().catch(() => ({}));
+        toast.error(d.error || 'Failed to import template');
+      }
+    } catch (err) { toast.error(err.message); }
+  }
+
+  async function toggleTemplate(id, currentlyDisabled) {
+    try {
+      const res = await fetchWithAuth('/api/admin/templates/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ template_id: id, disabled: !currentlyDisabled }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setDisabled(data.disabled || []);
+        toast.success(currentlyDisabled ? 'Template enabled' : 'Template disabled');
+      }
+    } catch { /* silent */ }
+  }
+
+  async function handleSaveTemplate(e) {
+    e.preventDefault();
+    const { isNew, id, label, roles, services } = editModal;
+    if (!id.trim() || !label.trim()) { toast.error('Template ID and label are required'); return; }
+
+    const parsedRoles = roles.split('\n').map(r => r.trim()).filter(Boolean).map(title => ({ title }));
+    const parsedServices = services.split('\n').map(r => r.trim()).filter(Boolean).map(line => {
+      const parts = line.split(',').map(p => p.trim());
+      return { name: parts[0] || line, duration: parseInt(parts[1]) || 30, price: parseFloat(parts[2]) || 0, category: parts[3] || '' };
+    });
+
+    try {
+      const url = isNew ? '/api/admin/templates/create' : `/api/admin/templates/${encodeURIComponent(id)}`;
+      const method = isNew ? 'POST' : 'PUT';
+      const body = isNew
+        ? { type_id: id, type_label: label, roles: parsedRoles, services: parsedServices }
+        : { label, roles: parsedRoles, services: parsedServices };
+
+      const res = await fetchWithAuth(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        toast.success(isNew ? 'Template created' : 'Template updated');
+        setEditModal({ open: false, id: '', label: '', roles: '', services: '', isNew: false });
+        fetchTemplates();
+      } else {
+        const d = await res.json().catch(() => ({}));
+        toast.error(d.error || 'Failed to save template');
+      }
+    } catch (err) { toast.error(err.message); }
+  }
+
+  function openEditor(t) {
+    if (!t) {
+      setEditModal({ open: true, id: '', label: '', roles: '', services: '', isNew: true });
+      return;
+    }
+    // Fetch full template data to pre-fill the form
+    setEditModal({ open: true, id: t.id, label: t.name || '', roles: '', services: '', isNew: false });
+    setLoadingTemplate(true);
+    fetchWithAuth(`/api/admin/templates/${t.id}`)
+      .then(async (res) => {
+        if (!res.ok) { setLoadingTemplate(false); return; }
+        const data = await res.json();
+        const tmpl = data.template;
+        const rolesStr = (tmpl.roles || []).map(r => r.title).join('\n');
+        const servicesStr = (tmpl.services || []).map(s =>
+          `${s.name}, ${s.duration}, ${s.price}, ${s.category || ''}`
+        ).join('\n');
+        setEditModal({
+          open: true,
+          id: t.id,
+          label: t.name || '',
+          roles: rolesStr,
+          services: servicesStr,
+          isNew: false,
+        });
+        setLoadingTemplate(false);
+      })
+      .catch(() => {
+        setLoadingTemplate(false);
+        /* keep empty fields on fetch error */
+      });
+  }
+
+  if (loading) return <Spinner />;
+  if (error) return <ErrorBlock message={error} onRetry={fetchTemplates} />;
+
+  const btMap = Object.fromEntries(BUSINESS_TYPES.map(bt => [bt.id, bt]));
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-xl font-serif font-bold text-text">Business Type Templates</h2>
+          <p className="text-sm text-text-secondary">Recommended services and staff roles for each business type</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={() => openEditor(null)}
+            className="px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary-dark transition-all shadow-sm flex items-center gap-1.5">
+            <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3v10M3 8h10" strokeLinecap="round" /></svg>
+            New Template
           </button>
-        ))}
+          <button onClick={fetchTemplates}
+            className="p-2 text-text-secondary hover:text-primary hover:bg-primary-bg rounded-xl transition-colors" title="Refresh">
+            <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M1 8a7 7 0 0113-3M15 1v4h-4" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M15 8a7 7 0 01-13 3M1 15v-4h4" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {templates.map(t => {
+          const bt = btMap[t.id];
+          const isDisabled = disabled.includes(t.id);
+          const isCustom = t.custom;
+          return (
+            <div key={t.id} className={`rounded-xl border p-4 transition-all group ${
+              isDisabled
+                ? 'border-border/30 bg-surface/50 opacity-60'
+                : 'bg-surface border-border hover:shadow-sm'
+            }`}>
+              <div className="flex items-center gap-3 mb-3">
+                <span className="text-xl">{bt?.icon || (isCustom ? '📝' : '📋')}</span>
+                <div>
+                  <h3 className="text-sm font-semibold text-text">{bt?.label || t.name}</h3>
+                  <p className="text-xs text-text-muted">{t.serviceCount} services · {t.roleCount} roles</p>
+                  {isCustom && <span className="text-[10px] text-primary font-medium">Custom</span>}
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {!isDisabled && (
+                  <button onClick={() => importTemplate(t.id)}
+                    className="px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary-bg rounded-lg transition-colors">
+                    Import
+                  </button>
+                )}
+                <button onClick={() => openEditor(t)}
+                  className="px-2.5 py-1.5 text-xs font-medium text-text-secondary hover:bg-surface-alt rounded-lg transition-colors">
+                    Edit
+                  </button>
+                <button onClick={() => toggleTemplate(t.id, isDisabled)}
+                  className={`px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                    isDisabled
+                      ? 'text-success hover:bg-success-bg border border-green-200'
+                      : 'text-warning hover:bg-warning-bg'
+                  }`}>
+                  {isDisabled ? 'Enable' : 'Disable'}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── Template Editor Modal ────────────── */}
+      {editModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setEditModal({ ...editModal, open: false })} />
+          <div className="relative bg-white rounded-2xl shadow-xl border border-border w-full max-w-lg animate-scale-in overflow-hidden">
+            <div className="px-6 py-5 border-b border-border flex items-center justify-between bg-surface-warm">
+              <h3 className="text-lg font-serif font-bold text-text">{editModal.isNew ? 'Create New Template' : 'Edit Template'}</h3>
+              <button onClick={() => setEditModal({ ...editModal, open: false })}
+                className="w-8 h-8 rounded-xl text-text-muted hover:text-text hover:bg-surface-alt transition-all flex items-center justify-center">
+                <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4l8 8M12 4l-8 8" strokeLinecap="round" /></svg>
+              </button>
+            </div>
+            <form onSubmit={handleSaveTemplate} className="p-6 space-y-4">
+              {editModal.isNew && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-text mb-1">Template ID *</label>
+                    <input type="text" value={editModal.id}
+                      onChange={e => setEditModal({ ...editModal, id: e.target.value })}
+                      placeholder="my-business-type"
+                      className="w-full px-4 py-2.5 bg-surface-warm border border-border rounded-xl text-sm transition-all" />
+                    <p className="text-xs text-text-muted mt-1">Unique identifier (e.g., &quot;custom-consulting&quot;)</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-text mb-1">Template Label *</label>
+                    <input type="text" value={editModal.label}
+                      onChange={e => setEditModal({ ...editModal, label: e.target.value })}
+                      placeholder="My Business Type"
+                      className="w-full px-4 py-2.5 bg-surface-warm border border-border rounded-xl text-sm transition-all" />
+                  </div>
+                </>
+              )}
+              {!editModal.isNew && (
+                <div>
+                  <label className="block text-sm font-medium text-text mb-1">Template Label *</label>
+                  <input type="text" value={editModal.label}
+                    onChange={e => setEditModal({ ...editModal, label: e.target.value })}
+                    className="w-full px-4 py-2.5 bg-surface-warm border border-border rounded-xl text-sm transition-all" />
+                </div>
+              )}
+              <div>
+                <label className="block text-sm font-medium text-text mb-1">Staff Roles</label>
+                <textarea value={editModal.roles}
+                  onChange={e => setEditModal({ ...editModal, roles: e.target.value })}
+                  placeholder={loadingTemplate ? 'Loading template...' : "One role per line, e.g.:&#10;Stylist&#10;Barber&#10;Massage Therapist"}
+                  rows={4} className="w-full px-4 py-2.5 bg-surface-warm border border-border rounded-xl text-sm transition-all resize-none" />
+                <p className="text-xs text-text-muted mt-1">Each line becomes a staff role title</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-text mb-1">Services</label>
+                <textarea value={editModal.services}
+                  onChange={e => setEditModal({ ...editModal, services: e.target.value })}
+                  placeholder={loadingTemplate ? 'Loading template...' : "One per line: Name, Duration, Price, Category&#10;e.g.:&#10;Haircut, 30, 35, Hair&#10;Facial, 60, 65, Skincare"}
+                  rows={6} className="w-full px-4 py-2.5 bg-surface-warm border border-border rounded-xl text-sm transition-all resize-none font-mono text-xs" />
+                <p className="text-xs text-text-muted mt-1">Format: name, duration in min, price, category</p>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setEditModal({ ...editModal, open: false })}
+                  className="flex-1 py-2.5 px-4 rounded-xl text-sm font-medium text-text-secondary border border-border hover:bg-surface-alt transition-all">
+                  Cancel
+                </button>
+                <button type="submit"
+                  className="flex-1 py-2.5 px-4 rounded-xl text-sm font-medium text-white bg-primary hover:bg-primary-dark transition-all shadow-sm">
+                  {editModal.isNew ? 'Create Template' : 'Update Template'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+export default function AdminDashboard() {
+  const { user, fetchWithAuth } = useAuth();
+  const { settings } = useBusiness();
+  const { tab } = useParams();
+
+  const primaryColor = settings?.primary_color || '#e11d48';
+  return (
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 animate-fade-in">
+      {/* Header */}
+      <div className="mb-8">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center shadow-sm" style={{ backgroundColor: primaryColor, boxShadow: `0 2px 8px ${primaryColor}40` }}>
+            <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>
+          </div>
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider" style={{ backgroundColor: primaryColor + '12', color: primaryColor }}>
+            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: primaryColor }} />
+            Administration
+          </div>
+        </div>
+        <h1 className="text-3xl sm:text-4xl font-serif font-bold text-text tracking-tight">Business Overview</h1>
+        <p className="text-text-secondary mt-2 text-sm">Monitor today's activity and track business performance — from services to revenue</p>
       </div>
 
       {/* Tab Content */}
       <div className="bg-white rounded-2xl border border-border p-6 shadow-sm">
-        {tab === 'story' && <StoryTab />}
-        {tab === 'settings' && <SettingsTab />}
+        {(!tab || tab === 'story') && <BusinessOverview />}
         {tab === 'staff' && <StaffTab />}
         {tab === 'services' && <ServicesTab />}
+        {tab === 'appointments' && <AppointmentsTab />}
+        {tab === 'users' && <UsersTab />}
+        {tab === 'settings' && <SettingsTab />}
         {tab === 'finance' && <FinanceTab />}
         {tab === 'developer' && <DeveloperTab />}
         {tab === 'ical' && <ICalManagerTab />}
@@ -1772,8 +2202,7 @@ export default function AdminDashboard() {
         {tab === 'widget' && <WidgetsTab />}
         {tab === 'coupons' && <CouponsTab />}
         {tab === 'analytics' && <AnalyticsDashboard />}
-        {tab === 'appointments' && <AppointmentsTab />}
-        {tab === 'users' && <UsersTab />}
+        {tab === 'templates' && <TemplatesTab />}
       </div>
     </div>
   );

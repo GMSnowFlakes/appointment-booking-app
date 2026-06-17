@@ -1,8 +1,8 @@
 /**
  * Database module — PostgreSQL via pg (node-postgres).
  *
- * When VITEST is set, swaps to an in-memory mock so tests run
- * without a real PostgreSQL instance.
+ * When VITEST or MOCK_DB is set, swaps to an in-memory mock so tests run
+ * without a real PostgreSQL instance (useful for dev without Docker).
  *
  * Provides async query helpers that mirror the original sql.js API
  * so the rest of the app can migrate with minimal changes.
@@ -11,10 +11,11 @@
  *   DATABASE_URL  — Postgres connection string (default: local Docker)
  *   PG_SCHEMA     — Optional schema name (used by tests for isolation)
  *   VITEST        — When truthy, uses in-memory tables instead of PG
+ *   MOCK_DB       — When truthy, uses in-memory tables (same as VITEST)
  */
 
 // Test mode: use in-memory implementation (no PostgreSQL required)
-if (process.env.VITEST) {
+if (process.env.VITEST || process.env.MOCK_DB) {
   const mock = require('./db-mock');
   module.exports = mock;
   return;

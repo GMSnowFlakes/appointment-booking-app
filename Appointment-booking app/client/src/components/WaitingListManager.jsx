@@ -12,7 +12,7 @@ function Spinner() {
 
 function EmptyState({ icon, title, message }) {
   return (
-    <div className="bg-white rounded-xl border border-border p-12 text-center">
+    <div className="bg-surface rounded-xl border border-border p-12 text-center">
       <div className="w-14 h-14 mx-auto mb-4 bg-primary-bg rounded-2xl flex items-center justify-center text-2xl">{icon}</div>
       <h3 className="text-lg font-semibold text-text mb-1">{title}</h3>
       <p className="text-text-secondary text-sm">{message}</p>
@@ -66,7 +66,7 @@ function JoinWaitingListForm({ services, staff, onJoined, onCancel }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={onCancel} />
-      <div className="relative bg-white rounded-2xl shadow-xl border border-border w-full max-w-md animate-scale-in p-6">
+      <div className="relative bg-surface rounded-2xl shadow-xl border border-border w-full max-w-md animate-scale-in p-6">
         <h3 className="text-lg font-serif font-bold text-text mb-4">Join Waiting List</h3>
         <p className="text-sm text-text-secondary mb-4">We'll notify you when a slot becomes available.</p>
 
@@ -190,7 +190,7 @@ export default function WaitingListManager() {
     waiting: { label: 'Waiting', color: 'bg-yellow-50 text-yellow-700 border-yellow-200' },
     notified: { label: 'Notified', color: 'bg-blue-50 text-blue-700 border-blue-200' },
     booked: { label: 'Booked', color: 'bg-green-50 text-green-700 border-green-200' },
-    expired: { label: 'Expired', color: 'bg-gray-50 text-gray-500 border-gray-200' },
+    expired: { label: 'Expired', color: 'badge-inactive' },
     cancelled: { label: 'Cancelled', color: 'bg-red-50 text-red-500 border-red-200' },
   };
 
@@ -217,7 +217,7 @@ export default function WaitingListManager() {
       </div>
 
       {/* Status filter tabs */}
-      <div className="flex items-center gap-2 mb-6 bg-white rounded-xl border border-border p-1">
+      <div className="flex items-center gap-2 mb-6 bg-surface rounded-xl border border-border p-1">
         {[
           { key: 'all', label: `All (${entries.length})` },
           { key: 'waiting', label: `Waiting (${entries.filter(e => e.status === 'waiting').length})` },
@@ -244,7 +244,7 @@ export default function WaitingListManager() {
             const service = services.find(s => s.id === entry.service_id);
             const staffMember = staff.find(s => s.id === entry.staff_id);
             return (
-              <div key={entry.id} className="bg-white rounded-xl border border-border p-4 hover:shadow-sm transition-all">
+              <div key={entry.id} className="bg-surface rounded-xl border border-border p-4 hover:shadow-sm transition-all">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1.5 flex-wrap">

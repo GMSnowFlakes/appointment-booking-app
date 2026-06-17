@@ -1,12 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
 const PAYPAL_CLIENT_ID = import.meta.env.VITE_PAYPAL_CLIENT_ID || '';
 
-export default function CheckoutForm({ appointment, onSuccess, onCancel }) {
+export default function CheckoutForm() {
   const { fetchWithAuth } = useAuth();
   const toast = useToast();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const appointment = location.state?.appointment;
   const [paymentMethod, setPaymentMethod] = useState('paypal');
   const [couponCode, setCouponCode] = useState('');
   const [coupon, setCoupon] = useState(null);
@@ -89,7 +93,7 @@ export default function CheckoutForm({ appointment, onSuccess, onCancel }) {
 
           toast.success('Payment successful!');
           setPaymentStep('success');
-          onSuccess?.();
+          navigate('/appointments');
         } catch (err) {
           toast.error(err.message);
           setPaymentStep('review');
@@ -188,7 +192,7 @@ export default function CheckoutForm({ appointment, onSuccess, onCancel }) {
               value={couponCode}
               onChange={e => setCouponCode(e.target.value)}
               placeholder="Coupon code"
-              className="flex-1 px-3 py-2 bg-white border border-border rounded-lg text-sm"
+              className="flex-1 px-3 py-2 bg-surface border border-border rounded-lg text-sm"
             />
             <button
               onClick={handleApplyCoupon}
@@ -214,7 +218,7 @@ export default function CheckoutForm({ appointment, onSuccess, onCancel }) {
           className={`flex-1 py-2.5 rounded-xl text-sm font-medium border transition-all ${
             paymentMethod === 'paypal'
               ? 'bg-[#0070ba] text-white border-[#0070ba]'
-              : 'bg-white text-text-secondary border-border hover:border-[#0070ba]'
+              : 'bg-surface text-text-secondary border-border hover:border-[#0070ba]'
           }`}
         >
           🅿️ PayPal
@@ -244,7 +248,7 @@ export default function CheckoutForm({ appointment, onSuccess, onCancel }) {
 
       {/* Actions */}
       <div className="flex gap-3 pt-2">
-        <button onClick={onCancel} className="flex-1 py-2.5 rounded-xl border border-border text-text-secondary text-sm font-medium hover:bg-surface-alt transition-all">
+        <button onClick={() => navigate('/book')} className="flex-1 py-2.5 rounded-xl border border-border text-text-secondary text-sm font-medium hover:bg-surface-alt transition-all">
           Cancel
         </button>
       </div>

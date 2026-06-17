@@ -78,7 +78,7 @@ export default function ConfirmDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="confirm-dialog-title"
-        className="relative bg-white rounded-2xl shadow-xl border border-border w-full max-w-sm animate-scale-in overflow-hidden"
+        className="relative bg-surface rounded-2xl shadow-xl border border-border w-full max-w-sm animate-scale-in overflow-hidden"
       >
         <div className="flex justify-center pt-8 pb-2">
           <div className={`w-14 h-14 rounded-2xl ${styles.iconBg} flex items-center justify-center ${styles.iconColor}`}>

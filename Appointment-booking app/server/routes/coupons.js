@@ -16,6 +16,21 @@ const { authenticateToken, requireAdmin } = require('../middleware/auth');
 const logger = require('../logger');
 const { sendError, sendValidationError, sendNotFoundError } = require('../errors');
 
+
+/**
+ * Determine the tenant ID associated with the current admin user.
+ * Looks up the user's tenant association, falling back to the default tenant.
+ */
+async function getTenantId(userId) {
+  const tu = await queryOne(
+    'SELECT t.id FROM tenants t JOIN tenant_users tu ON tu.tenant_id = t.id WHERE tu.user_id = $1',
+    [userId]
+  );
+  if (tu) return tu.id;
+  const defaultTenant = await queryOne("SELECT id FROM tenants WHERE slug = 'default'");
+  return defaultTenant?.id || 1;
+}
+
 const router = express.Router();
 
 // ─── Public: Validate a coupon code ─────────────────────
@@ -202,7 +217,8 @@ const adminRouter = express.Router();
 adminRouter.use(authenticateToken, requireAdmin);
 
 adminRouter.get('/', async (req, res) => {
-  const coupons = await queryAll('SELECT * FROM coupons ORDER BY created_at DESC');
+  const tenantId = await getTenantId(req.user.id);
+  const coupons = await queryAll('SELECT * FROM coupons WHERE tenant_id = $1 ORDER BY created_at DESC', [tenantId]);
   res.json({ coupons });
 });
 
@@ -219,9 +235,10 @@ adminRouter.post('/', async (req, res) => {
     return sendValidationError(res, 'Percentage discount must be between 1 and 100');
   }
 
+  const tenantId = await getTenantId(req.user.id);
   const result = await run(`
-    INSERT INTO coupons (code, description, discount_type, discount_value, min_appointment_amount, max_uses, max_uses_per_user, valid_from, valid_until)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    INSERT INTO coupons (code, description, discount_type, discount_value, min_appointment_amount, max_uses, max_uses_per_user, valid_from, valid_until, tenant_id)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
     RETURNING id
   `, [
     code.toUpperCase().replace(/\s+/g, ''),
@@ -233,6 +250,7 @@ adminRouter.post('/', async (req, res) => {
     max_uses_per_user ?? 1,
     valid_from || null,
     valid_until || null,
+    tenantId,
   ]);
 
   const coupon = await queryOne('SELECT * FROM coupons WHERE id = $1', [result.lastInsertRowid]);
@@ -241,7 +259,8 @@ adminRouter.post('/', async (req, res) => {
 });
 
 adminRouter.put('/:id', async (req, res) => {
-  const existing = await queryOne('SELECT * FROM coupons WHERE id = $1', [req.params.id]);
+  const tenantId = await getTenantId(req.user.id);
+  const existing = await queryOne('SELECT * FROM coupons WHERE id = $1 AND tenant_id = $2', [req.params.id, tenantId]);
   if (!existing) return sendNotFoundError(res, 'Coupon not found');
 
   const { description, discount_type, discount_value, min_appointment_amount, max_uses, max_uses_per_user, is_active, valid_from, valid_until } = req.body;
@@ -262,20 +281,46 @@ adminRouter.put('/:id', async (req, res) => {
   if (updates.length === 0) return sendValidationError(res, 'No fields to update');
 
   params.push(req.params.id);
-  await run(`UPDATE coupons SET ${updates.join(', ')} WHERE id = $${idx}`, params);
+  params.push(tenantId);
+  await run(`UPDATE coupons SET ${updates.join(', ')} WHERE id = $${idx} AND tenant_id = $${idx + 1}`, params);
 
   const coupon = await queryOne('SELECT * FROM coupons WHERE id = $1', [req.params.id]);
   res.json({ message: 'Coupon updated successfully', coupon });
 });
 
 adminRouter.delete('/:id', async (req, res) => {
-  const existing = await queryOne('SELECT * FROM coupons WHERE id = $1', [req.params.id]);
+  const tenantId = await getTenantId(req.user.id);
+  const existing = await queryOne('SELECT * FROM coupons WHERE id = $1 AND tenant_id = $2', [req.params.id, tenantId]);
   if (!existing) return sendNotFoundError(res, 'Coupon not found');
-  await run('UPDATE coupons SET is_active = 0 WHERE id = $1', [req.params.id]);
+  await run('UPDATE coupons SET is_active = 0 WHERE id = $1 AND tenant_id = $2', [req.params.id, tenantId]);
   res.json({ message: 'Coupon deactivated successfully' });
 });
 
-// Mount admin routes under /admin
+// ─── Admin: Toggle coupon active status ─────────────────
+
+adminRouter.post('/:id/toggle', async (req, res) => {
+  try {
+    const tenantId = await getTenantId(req.user.id);
+    const coupon = await queryOne('SELECT * FROM coupons WHERE id = $1 AND tenant_id = $2', [req.params.id, tenantId]);
+    if (!coupon) return sendNotFoundError(res, 'Coupon not found');
+
+    const newStatus = coupon.is_active ? 0 : 1;
+    await run('UPDATE coupons SET is_active = $1 WHERE id = $2 AND tenant_id = $3', [newStatus, req.params.id, tenantId]);
+
+    const updated = await queryOne('SELECT * FROM coupons WHERE id = $1', [req.params.id]);
+    logger.info({ couponId: req.params.id, wasActive: !!coupon.is_active, nowActive: !!updated.is_active }, 'Admin toggled coupon');
+    res.json({ message: `Coupon ${newStatus ? 'activated' : 'deactivated'} successfully`, coupon: updated });
+  } catch (err) {
+    logger.error({ err, couponId: req.params.id }, 'Failed to toggle coupon');
+    sendError(res, 500, 'Failed to toggle coupon status');
+  }
+});
+
+// Mount admin routes under /admin (backwards compat)
 router.use('/admin', adminRouter);
 
+// Export both the main router and admin router separately
+// The main router handles /api/coupons/*
+// adminRouter handles /api/admin/coupons/*
 module.exports = router;
+module.exports.adminRouter = adminRouter;

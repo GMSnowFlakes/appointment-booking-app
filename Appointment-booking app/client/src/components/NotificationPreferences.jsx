@@ -90,7 +90,7 @@ export default function NotificationPreferences() {
   if (!user) {
     return (
       <div className="min-h-[70vh] flex items-center justify-center">
-        <div className="bg-white rounded-3xl border border-border p-10 max-w-md text-center shadow-sm animate-fade-in">
+        <div className="bg-surface rounded-3xl border border-border p-10 max-w-md text-center shadow-sm animate-fade-in">
           <div className="w-16 h-16 mx-auto mb-4 bg-primary-bg rounded-2xl flex items-center justify-center">
             <BellIcon className="w-7 h-7 text-primary" />
           </div>
@@ -117,7 +117,7 @@ export default function NotificationPreferences() {
 
       <div className="space-y-4">
         {/* Email Reminders Card */}
-        <div className="bg-white rounded-2xl border border-border p-6 sm:p-8 shadow-sm hover:shadow-md transition-all duration-300">
+        <div className="bg-surface rounded-2xl border border-border p-6 sm:p-8 shadow-sm hover:shadow-md transition-all duration-300">
           <div className="flex items-start justify-between gap-6">
             <div className="flex items-start gap-4 flex-1 min-w-0">
               <div className="w-12 h-12 rounded-xl bg-primary-bg flex items-center justify-center flex-shrink-0">
@@ -158,7 +158,7 @@ export default function NotificationPreferences() {
                   style={emailReminders ? { backgroundColor: settings?.primary_color || '#e11d48' } : {}}
                 >
                   <span
-                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-all duration-300 ${
+                    className={`inline-block h-5 w-5 transform rounded-full bg-surface shadow-sm transition-all duration-300 ${
                       emailReminders ? 'translate-x-6' : 'translate-x-1'
                     }`}
                   />
@@ -192,7 +192,7 @@ export default function NotificationPreferences() {
         </div>
 
         {/* Other notification types placeholder (future) */}
-        <div className="bg-white rounded-2xl border border-border p-6 sm:p-8 shadow-sm opacity-60">
+        <div className="bg-surface rounded-2xl border border-border p-6 sm:p-8 shadow-sm opacity-60">
           <div className="flex items-start gap-4">
             <div className="w-12 h-12 rounded-xl bg-surface-alt flex items-center justify-center flex-shrink-0">
               <BellIcon className="w-6 h-6 text-text-muted" />

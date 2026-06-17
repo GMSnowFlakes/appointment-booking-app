@@ -112,12 +112,12 @@ test.describe('Admin Dashboard', () => {
     await page.waitForLoadState('domcontentloaded');
 
     // Should see the admin dashboard header
-    await expect(page.locator('text=Admin Dashboard')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('h1:has-text("Dashboard"), text=ADMINISTRATION')).toBeVisible({ timeout: 10_000 });
 
     // Should see stats cards
-    await expect(page.locator('text=Active Services')).toBeVisible({ timeout: 5_000 });
-    await expect(page.locator('text=Total Appointments')).toBeVisible({ timeout: 5_000 });
-    await expect(page.locator('text=Registered Users')).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator('text=Active services')).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator('text=Appointments')).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator('text=registered users')).toBeVisible({ timeout: 5_000 });
   });
 
   test('admin services tab should list seeded services', async ({ page }) => {
@@ -127,11 +127,12 @@ test.describe('Admin Dashboard', () => {
     await page.locator('nav button', { hasText: 'Admin' }).click();
     await page.waitForLoadState('domcontentloaded');
 
-    // Should be on services tab by default
-    await expect(page.locator('text=Manage Services')).toBeVisible({ timeout: 10_000 });
+    // Click the Services tab in the admin tab bar
+    await page.locator('button:has-text("Services"):not(nav *)').first().click();
+    await page.waitForLoadState('domcontentloaded');
 
     // Should see seed services listed
-    await expect(page.locator('text=Haircut & Styling').first()).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator('text=Haircut & Styling').first()).toBeVisible({ timeout: 10_000 });
     await expect(page.locator('text=Massage Therapy').first()).toBeVisible({ timeout: 5_000 });
   });
 
@@ -140,6 +141,10 @@ test.describe('Admin Dashboard', () => {
 
     // Navigate to admin
     await page.locator('nav button', { hasText: 'Admin' }).click();
+    await page.waitForLoadState('domcontentloaded');
+
+    // Click the Services tab in the admin tab bar
+    await page.locator('button:has-text("Services"):not(nav *)').first().click();
     await page.waitForLoadState('domcontentloaded');
 
     // Click Add Service button

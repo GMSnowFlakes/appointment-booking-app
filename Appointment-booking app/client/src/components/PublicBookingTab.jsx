@@ -94,7 +94,7 @@ export default function PublicBookingTab() {
       </div>
 
       {loading ? <Spinner /> : pages.length === 0 ? (
-        <div className="bg-white rounded-xl border border-border p-12 text-center">
+        <div className="bg-surface rounded-xl border border-border p-12 text-center">
           <div className="w-14 h-14 mx-auto mb-4 bg-primary-bg rounded-2xl flex items-center justify-center">
             <svg className="w-6 h-6 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" />
@@ -115,17 +115,17 @@ export default function PublicBookingTab() {
             const isActive = p.is_active !== false;
 
             return (
-              <div key={p.id} className={`bg-white rounded-xl border ${isActive ? 'border-border' : 'border-dashed border-border/50'} overflow-hidden shadow-sm hover:shadow-md transition-all`}>
+              <div key={p.id} className={`bg-surface rounded-xl border ${isActive ? 'border-border' : 'border-dashed border-border/50'} overflow-hidden shadow-sm hover:shadow-md transition-all`}>
                 <div className="px-6 py-4 border-b border-border bg-surface-warm/50 flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${isActive ? 'bg-primary-bg' : 'bg-gray-50'}`}>
+                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${isActive ? 'bg-primary-bg' : 'bg-surface-alt'}`}>
                       <svg className={`w-4 h-4 ${isActive ? 'text-primary' : 'text-text-muted'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                         <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" />
                       </svg>
                     </div>
                     <div>
                       <h3 className="font-semibold text-text">{p.title || 'Booking Page'}</h3>
-                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${isActive ? 'bg-success-bg text-success border-green-200' : 'bg-gray-50 text-gray-500 border-gray-200'}`}>
+                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${isActive ? 'bg-success-bg text-success border-green-200' : 'badge-inactive'}`}>
                         {isActive ? 'Published' : 'Inactive'}
                       </span>
                     </div>
@@ -246,7 +246,7 @@ function PublicPageFormModal({ page, onClose, onSave }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-xl border border-border w-full max-w-lg animate-scale-in overflow-hidden">
+      <div className="relative bg-surface rounded-2xl shadow-xl border border-border w-full max-w-lg animate-scale-in overflow-hidden">
         <div className="px-6 py-4 border-b border-border bg-surface-warm">
           <h3 className="text-lg font-serif font-bold text-text">{page ? 'Edit Booking Page' : 'Create Booking Page'}</h3>
         </div>

@@ -120,7 +120,7 @@ function HorizontalBars({ data, labelKey, valueKey, max, color }) {
 // eslint-disable-next-line no-unused-vars
 function StatCard({ label, value, sub, icon, trend, color }) {
   return (
-    <div className="bg-white rounded-xl border border-border p-5 shadow-sm hover:shadow-md transition-all">
+    <div className="bg-surface rounded-xl border border-border p-5 shadow-sm hover:shadow-md transition-all">
       <div className="flex items-start justify-between mb-2">
         <span className="text-xs font-semibold uppercase tracking-wider text-text-muted">{label}</span>
         <span className="text-lg">{icon}</span>
@@ -197,11 +197,11 @@ export default function AnalyticsDashboard() {
         fetchWithAuth(`/api/analytics/commissions?period=${period}`),
       ]);
 
-      if (!sumRes.ok) { const d = await sumRes.json(); throw new Error(d.error || 'Failed to load summary'); }
-      if (!revRes.ok) { const d = await revRes.json(); throw new Error(d.error || 'Failed to load revenue'); }
-      if (!bhRes.ok) { const d = await bhRes.json(); throw new Error(d.error || 'Failed to load hours'); }
-      if (!tsRes.ok) { const d = await tsRes.json(); throw new Error(d.error || 'Failed to load services'); }
-      if (!comRes.ok) { const d = await comRes.json(); throw new Error(d.error || 'Failed to load commissions'); }
+      if (!sumRes.ok) { const d = await sumRes.json(); console.warn('Analytics summary | Status:', sumRes.status, '| Body:', d); throw new Error('Unable to load dashboard data'); }
+      if (!revRes.ok) { const d = await revRes.json(); console.warn('Analytics revenue | Status:', revRes.status, '| Body:', d); throw new Error('Unable to load dashboard data'); }
+      if (!bhRes.ok) { const d = await bhRes.json(); console.warn('Analytics busiest-hours | Status:', bhRes.status, '| Body:', d); throw new Error('Unable to load dashboard data'); }
+      if (!tsRes.ok) { const d = await tsRes.json(); console.warn('Analytics top-services | Status:', tsRes.status, '| Body:', d); throw new Error('Unable to load dashboard data'); }
+      if (!comRes.ok) { const d = await comRes.json(); console.warn('Analytics commissions | Status:', comRes.status, '| Body:', d); throw new Error('Unable to load dashboard data'); }
 
       const [sumData, revData, bhData, tsData, comData] = await Promise.all([
         sumRes.json(), revRes.json(), bhRes.json(), tsRes.json(), comRes.json(),
@@ -233,14 +233,14 @@ export default function AnalyticsDashboard() {
         {/* Stats skeleton */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {[1, 2, 3, 4, 5, 6].map(i => (
-            <div key={i} className="bg-white rounded-xl border border-border p-5 animate-pulse">
+            <div key={i} className="bg-surface rounded-xl border border-border p-5 animate-pulse">
               <div className="h-4 w-16 bg-surface-alt rounded mb-3" />
               <div className="h-8 w-24 bg-surface-alt rounded" />
             </div>
           ))}
         </div>
         {/* Chart skeleton */}
-        <div className="bg-white rounded-xl border border-border p-6">
+        <div className="bg-surface rounded-xl border border-border p-6">
           <div className="h-5 w-40 bg-surface-alt rounded mb-4" />
           <div className="h-[200px] bg-surface-alt/50 rounded-xl" />
         </div>
@@ -251,7 +251,7 @@ export default function AnalyticsDashboard() {
   // — Error state —
   if (error) {
     return (
-      <div className="bg-white rounded-xl border border-border p-8 text-center animate-fade-in">
+      <div className="bg-surface rounded-xl border border-border p-8 text-center animate-fade-in">
         <div className="w-12 h-12 mx-auto mb-3 bg-error-bg rounded-xl flex items-center justify-center text-xl">😕</div>
         <p className="text-text-secondary text-sm mb-4">{error}</p>
         <button onClick={fetchAll}
@@ -279,7 +279,7 @@ export default function AnalyticsDashboard() {
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                 period === p.id
                   ? 'text-white shadow-sm'
-                  : 'text-text-secondary hover:text-text hover:bg-white/50'
+                  : 'text-text-secondary hover:text-text hover:bg-surface/50'
               }`}
               style={period === p.id ? { backgroundColor: primaryColor } : {}}>
               {p.label}
@@ -294,7 +294,7 @@ export default function AnalyticsDashboard() {
       {/* Two-column layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Revenue Chart — wider */}
-        <div className="lg:col-span-2 bg-white rounded-xl border border-border p-6 shadow-sm">
+        <div className="lg:col-span-2 bg-surface rounded-xl border border-border p-6 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-text">Daily Revenue</h3>
             <span className="text-lg font-bold text-primary" style={{ color: primaryColor }}>
@@ -318,7 +318,7 @@ export default function AnalyticsDashboard() {
         </div>
 
         {/* Busiest Hours */}
-        <div className="bg-white rounded-xl border border-border p-6 shadow-sm">
+        <div className="bg-surface rounded-xl border border-border p-6 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-text">Busiest Hours</h3>
             {busiestHours.length > 0 && (
@@ -342,7 +342,7 @@ export default function AnalyticsDashboard() {
       {/* Two-column: Top Services + Commissions */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Top Services */}
-        <div className="bg-white rounded-xl border border-border p-6 shadow-sm">
+        <div className="bg-surface rounded-xl border border-border p-6 shadow-sm">
           <h3 className="font-semibold text-text mb-4">Top Services</h3>
           {topServices.length === 0 ? (
             <p className="text-text-muted text-sm py-4 text-center">No service data yet</p>
@@ -363,7 +363,7 @@ export default function AnalyticsDashboard() {
                       <td className="py-3 px-6">
                         <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold ${
                           i === 0 ? 'bg-amber-50 text-amber-700' :
-                          i === 1 ? 'bg-gray-50 text-gray-600' :
+                          i === 1 ? 'bg-surface-alt text-text-secondary' :
                           i === 2 ? 'bg-orange-50 text-orange-700' :
                           'bg-surface-alt text-text-muted'
                         }`}>
@@ -387,7 +387,7 @@ export default function AnalyticsDashboard() {
         </div>
 
         {/* Staff Commissions */}
-        <div className="bg-white rounded-xl border border-border p-6 shadow-sm">
+        <div className="bg-surface rounded-xl border border-border p-6 shadow-sm">
           <h3 className="font-semibold text-text mb-4">Staff Commissions</h3>
           {commissions.length === 0 ? (
             <p className="text-text-muted text-sm py-4 text-center">No commission data yet</p>

@@ -1,9 +1,11 @@
-import { useState, useRef, useEffect } from 'react';
-import { AuthProvider } from './context/AuthContext';
+import { useState, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useNavigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { PWAProvider } from './context/PWAContext';
 import { ToastProvider } from './context/ToastContext';
 import { useBusiness } from './context/BusinessContext';
+import Sidebar from './components/Sidebar';
 import Navbar from './components/Navbar';
 import ServiceList from './components/ServiceList';
 import AuthForm from './components/AuthForm';
@@ -15,125 +17,131 @@ import ProfilePage from './components/ProfilePage';
 import CheckoutForm from './components/CheckoutForm';
 import WaitingListManager from './components/WaitingListManager';
 
-// ─── Footer ─────────────────────────────────────
+// ─── Footer ─────────────────────────────────
 
 function Footer() {
   const { settings } = useBusiness();
+  const { user } = useAuth();
   return (
-    <footer className="relative z-10 mt-16 border-t border-border bg-white/50 backdrop-blur-sm">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg flex items-center justify-center"
-              style={{ backgroundColor: settings?.primary_color || '#e11d48' }}>
-              <svg className="w-3.5 h-3.5 text-white" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <rect x="1.5" y="3.5" width="17" height="15" rx="2" />
-                <path d="M1.5 8.5h17" />
-              </svg>
-            </div>
-            <span className="text-sm font-medium text-text">{settings?.business_name || 'AppointmentBook'}</span>
-          </div>
-          <p className="text-xs text-text-muted">&copy; {new Date().getFullYear()} &mdash; Online booking platform</p>
-        </div>
-      </div>
+    <footer className="text-center py-4 px-8 text-[11px] text-text-muted border-t border-border">
+      <p>&copy; {new Date().getFullYear()} {user ? 'CRAMS ServiceHub &mdash; ' : ''}{settings?.business_name || (user ? 'Your Business' : 'Appointment Booking Platform')}</p>
     </footer>
   );
 }
 
-// ─── Page Transition Wrapper ───────────────────
+// ─── Public Layout (no sidebar) ──────────────
 
-function PageTransition({ page, children }) {
-  const prevPage = useRef(page);
-  const [animClass, setAnimClass] = useState('');
-
-  useEffect(() => {
-    if (prevPage.current !== page) {
-      setAnimClass('animate-page-out');
-      const timer = setTimeout(() => {
-        setAnimClass('animate-page-in');
-        prevPage.current = page;
-      }, 150);
-      return () => clearTimeout(timer);
-    }
-    prevPage.current = page;
-  }, [page]);
-
+function PublicLayout() {
   return (
-    <div className={`transition-opacity duration-150 ${animClass}`}>
-      {children}
-    </div>
-  );
-}
-
-// ─── App Content ───────────────────────────────
-
-function AppContent() {
-  const [page, setPage] = useState('services');
-  const [authMode, setAuthMode] = useState('login');
-  const [refreshAppointments, setRefreshAppointments] = useState(0);
-  const [checkoutAppointment, setCheckoutAppointment] = useState(null);
-
-  function handleNavigate(p) {
-    if (p === 'login' || p === 'register') {
-      setAuthMode(p);
-      setPage('auth');
-    } else {
-      setPage(p);
-    }
-  }
-
-  function handleAuthSuccess() { setPage('services'); }
-
-  function handleBookingSuccess(appointment) {
-    setRefreshAppointments(prev => prev + 1);
-    if (appointment) {
-      setCheckoutAppointment(appointment);
-      setPage('checkout');
-    } else {
-      setTimeout(() => setPage('appointments'), 1500);
-    }
-  }
-
-  function renderPage() {
-    switch (page) {
-      case 'auth': return <AuthForm key={authMode} mode={authMode} onSuccess={handleAuthSuccess} onToggle={() => setAuthMode(authMode === 'login' ? 'register' : 'login')} />;
-      case 'book': return <BookingForm key={refreshAppointments} onBooked={handleBookingSuccess} onCheckout={(apt) => { setCheckoutAppointment(apt); setPage('checkout'); }} />;
-      case 'appointments': return <AppointmentList key={refreshAppointments} />;
-      case 'notifications': return <NotificationPreferences />;
-      case 'admin': return <AdminDashboard />;
-      case 'profile': return <ProfilePage />;
-      case 'waiting-list': return <WaitingListManager key={refreshAppointments} />;
-      case 'checkout': return <CheckoutForm appointment={checkoutAppointment} onSuccess={() => { setCheckoutAppointment(null); setPage('appointments'); }} onCancel={() => { setCheckoutAppointment(null); setPage('book'); }} />;
-      case 'services':
-      default: return <ServiceList />;
-    }
-  }
-
-  return (
-    <div className="min-h-screen bg-surface-warm relative">
-      <Navbar currentPage={page === 'auth' ? authMode : page} onNavigate={handleNavigate} />
-      <main className="relative z-10">
-        <PageTransition page={page}>
-          {renderPage()}
-        </PageTransition>
+    <div className="min-h-screen bg-bg">
+      <Navbar />
+      <main className="animate-fade-in">
+        <Outlet />
       </main>
       <Footer />
     </div>
   );
 }
 
-// ─── Root App ───────────────────────────────────
+// ─── Sidebar Layout (authenticated) ─────────
+
+function SidebarLayout() {
+  const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 1024);
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1024px)');
+    const handler = (e) => setSidebarOpen(!e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
+  // Keyboard shortcut: Ctrl+B / Cmd+B to toggle sidebar
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+      if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+        e.preventDefault();
+        setSidebarOpen(prev => !prev);
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  return (
+    <div className={`main-layout ${isAdmin ? 'admin-layout' : ''}`}>
+      <Sidebar
+        collapsed={!sidebarOpen}
+        onToggle={() => setSidebarOpen(!sidebarOpen)}
+      />
+      <div className={`main-content ${!sidebarOpen ? 'main-content-full' : ''}`}>
+        <Navbar onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
+        <main className="main-area animate-fade-in">
+          <Outlet />
+        </main>
+        <Footer />
+      </div>
+    </div>
+  );
+}
+
+// ─── App Routes ──────────────────────────────
+
+function AppRoutes() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const Layout = user ? SidebarLayout : PublicLayout;
+
+  return (
+    <Routes>
+      <Route element={<Layout />}>
+        {/* Public / Home — admin sees admin dashboard, others see services */}
+        <Route index element={
+          user?.role === 'admin' ? <AdminDashboard /> : <ServiceList onNavigateToBook={() => navigate('/book')} />
+        } />
+        <Route path="login" element={<AuthForm />} />
+        <Route path="register" element={<AuthForm />} />
+
+        {/* Authenticated pages */}
+        <Route path="book" element={<BookingForm />} />
+        <Route path="appointments" element={
+          user?.role === 'admin' ? <AdminDashboard /> : <AppointmentList />
+        } />
+        <Route path="notifications" element={<NotificationPreferences />} />
+        <Route path="profile" element={<ProfilePage />} />
+        <Route path="waiting-list" element={<WaitingListManager />} />
+        <Route path="checkout" element={<CheckoutForm />} />
+
+        {/* Admin routes — redirect non-admins */}
+        <Route path="admin" element={
+          user?.role === 'admin' ? <Navigate to="/admin/story" replace /> : <Navigate to="/" replace />
+        } />
+        <Route path="admin/:tab" element={
+          user?.role === 'admin' ? <AdminDashboard /> : <Navigate to="/" replace />
+        } />
+      </Route>
+
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
+
+// ─── Root App ───────────────────────────────
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <PWAProvider>
-          <ToastProvider>
-            <AppContent />
-          </ToastProvider>
-        </PWAProvider>
-      </AuthProvider>
-    </ThemeProvider>
+    <BrowserRouter>
+      <ThemeProvider>
+        <AuthProvider>
+          <PWAProvider>
+            <ToastProvider>
+              <AppRoutes />
+            </ToastProvider>
+          </PWAProvider>
+        </AuthProvider>
+      </ThemeProvider>
+    </BrowserRouter>
   );
 }

@@ -276,14 +276,53 @@ router.put('/appointments/:id/status', async (req, res) => {
 // ──────────────────────────────────────────────
 
 router.get('/users', async (req, res) => {
-  const users = await queryAll(`
-    SELECT u.id, u.name, u.email, u.role, u.created_at,
-           (SELECT COUNT(*)::int FROM appointments WHERE user_id = u.id) as appointment_count
-    FROM users u
-    ORDER BY u.created_at DESC
-  `);
-
+  const { role } = req.query;
+  let users;
+  if (process.env.MOCK_DB) {
+    let sql = `SELECT id, name, email, role, created_at FROM users`;
+    const params = [];
+    if (role) { sql += ` WHERE role = $1`; params.push(role); }
+    sql += ` ORDER BY created_at DESC`;
+    users = await queryAll(sql, params.length ? params : undefined);
+    for (const user of users) {
+      const countResult = await queryOne("SELECT COUNT(*) as cnt FROM appointments WHERE user_id = $1", [user.id]);
+      user.appointment_count = countResult ? parseInt(countResult.cnt) : 0;
+    }
+  } else {
+    let sql = `SELECT u.id, u.name, u.email, u.role, u.created_at,
+      (SELECT COUNT(*)::int FROM appointments WHERE user_id = u.id) as appointment_count
+    FROM users u`;
+    const params = [];
+    if (role) { sql += ` WHERE u.role = $1`; params.push(role); }
+    sql += ` ORDER BY u.created_at DESC`;
+    users = await queryAll(sql, params.length ? params : undefined);
+  }
   res.json({ users });
+});
+
+router.post('/users', async (req, res) => {
+  const bcrypt = require('bcryptjs');
+  const { name, email, role } = req.body;
+  if (!name || !email) return sendValidationError(res, 'name and email are required');
+  if (role && !['customer', 'admin', 'staff'].includes(role)) return sendValidationError(res, 'Role must be one of: customer, admin, staff');
+
+  const existing = await queryOne('SELECT id FROM users WHERE email = $1', [email]);
+  if (existing) return sendError(res, 409, 'Email already registered');
+
+  const defaultRole = role || 'customer';
+  const genPass = Math.random().toString(36).slice(2, 10) + 'A1!';
+  const hashedPassword = bcrypt.hashSync(genPass, 10);
+
+  const result = await run(
+    `INSERT INTO users (name, email, password, role)
+     VALUES ($1, $2, $3, $4)
+     RETURNING id`,
+    [name, email, hashedPassword, defaultRole]
+  );
+
+  const user = await queryOne('SELECT id, name, email, role, created_at FROM users WHERE id = $1', [result.lastInsertRowid]);
+  logger.info({ userId: user?.id, email, role: defaultRole }, 'Admin created user');
+  res.status(201).json({ message: 'User created successfully', user });
 });
 
 router.put('/users/:id/role', async (req, res) => {
@@ -387,6 +426,232 @@ router.put('/settings', async (req, res) => {
   const settings = await queryOne('SELECT * FROM business_settings LIMIT 1');
   logger.info({ businessName: settings?.business_name, businessType: settings?.business_type }, 'Business settings updated');
   res.json({ message: 'Business settings updated successfully', settings });
+});
+
+// ──────────────────────────────────────────────
+// BUSINESS TYPE TEMPLATES
+// ──────────────────────────────────────────────
+
+const { TEMPLATES, getTemplate, getTemplateTypes } = require('../business-templates');
+
+/** Return all template metadata (no service details, just counts) */
+router.get('/templates', async (req, res) => {
+  const list = [];
+
+  // Built-in templates
+  getTemplateTypes().forEach(id => {
+    const tpl = TEMPLATES[id];
+    list.push({
+      id,
+      name: id.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+      roleCount: tpl.roles.length,
+      serviceCount: tpl.services.length,
+      custom: false,
+    });
+  });
+
+  // Custom templates from DB
+  const custom = await getCustomTemplates();
+  Object.keys(custom).forEach(id => {
+    const t = custom[id];
+    if (!TEMPLATES[id]) {  // don't duplicate built-in
+      list.push({
+        id,
+        name: t.label || id,
+        roleCount: (t.roles || []).length,
+        serviceCount: (t.services || []).length,
+        custom: true,
+      });
+    }
+  });
+
+  list.sort((a, b) => a.name.localeCompare(b.name));
+  res.json({ templates: list });
+});
+
+/** Return full template for a business type (checks custom first, then built-in) */
+router.get('/templates/:type', async (req, res) => {
+  // Check custom templates first
+  const custom = await getCustomTemplates();
+  if (custom[req.params.type]) {
+    return res.json({ template: custom[req.params.type], custom: true });
+  }
+  const tpl = getTemplate(req.params.type);
+  if (!tpl) return sendNotFoundError(res, 'No template found for this business type');
+  res.json({ template: tpl, custom: false });
+});
+
+/** Return disabled template IDs from business_settings */
+router.get('/templates/disabled', async (req, res) => {
+  const settings = await queryOne('SELECT disabled_templates FROM business_settings LIMIT 1');
+  let disabled = [];
+  if (settings && settings.disabled_templates) {
+    try { disabled = JSON.parse(settings.disabled_templates); } catch { disabled = []; }
+  }
+  res.json({ disabled });
+});
+
+/** Toggle a template as disabled/enabled */
+router.post('/templates/toggle', async (req, res) => {
+  const { template_id, disabled } = req.body;
+  if (!template_id) return sendValidationError(res, 'template_id is required');
+
+  const settings = await queryOne('SELECT id, disabled_templates FROM business_settings LIMIT 1');
+  if (!settings) return sendNotFoundError(res, 'Business settings not found');
+
+  let disabledList = [];
+  if (settings.disabled_templates) {
+    try { disabledList = JSON.parse(settings.disabled_templates); } catch { disabledList = []; }
+  }
+
+  if (disabled) {
+    if (!disabledList.includes(template_id)) disabledList.push(template_id);
+  } else {
+    disabledList = disabledList.filter(id => id !== template_id);
+  }
+
+  await run('UPDATE business_settings SET disabled_templates = $1, updated_at = NOW() WHERE id = $2', [JSON.stringify(disabledList), settings.id]);
+  res.json({ disabled: disabledList });
+});
+
+/**
+ * Import a template for a business type.
+ * Inserts services (skipping duplicates by name) and returns what was added.
+ */
+router.post('/templates/import', async (req, res) => {
+  const { business_type, import_roles, import_services } = req.body;
+  if (!business_type) return sendValidationError(res, 'business_type is required');
+
+  const tpl = getTemplate(business_type);
+  if (!tpl) return sendNotFoundError(res, 'No template found for this business type');
+
+  const created = { services: [], roles: [] };
+
+  // ── Import services (skip duplicates by name) ─────────
+  if (import_services !== false) {
+    for (const svc of tpl.services) {
+      // Check if service with same name already exists (case-insensitive)
+      const existing = await queryOne(
+        'SELECT id FROM services WHERE LOWER(name) = LOWER($1)',
+        [svc.name]
+      );
+      if (existing) continue; // skip duplicate
+
+      const result = await run(
+        `INSERT INTO services (name, description, duration, price, category)
+         VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+        [svc.name, svc.description || null, svc.duration, svc.price, svc.category || null]
+      );
+      created.services.push({ id: result.lastInsertRowid, ...svc });
+    }
+  }
+
+  // ── Import roles as staff member templates ────────────
+  // Roles become titles in staff_members (actual staff members are created later)
+  // We store recommended roles in business_settings as JSON so we can show them
+  if (import_roles !== false) {
+    // Fetch the current business settings
+    const settings = await queryOne('SELECT * FROM business_settings LIMIT 1');
+    let recommendedRoles = [];
+    if (settings && settings.recommended_roles) {
+      try { recommendedRoles = JSON.parse(settings.recommended_roles); } catch { recommendedRoles = []; }
+    }
+
+    // Merge new roles
+    const existingTitles = new Set(recommendedRoles.map(r => r.title?.toLowerCase()));
+    for (const role of tpl.roles) {
+      if (!existingTitles.has(role.title.toLowerCase())) {
+        recommendedRoles.push(role);
+        created.roles.push(role);
+      }
+    }
+
+    // Save back to business_settings
+    const hasExisting = await queryOne('SELECT id FROM business_settings LIMIT 1');
+    if (hasExisting) {
+      await run(
+        'UPDATE business_settings SET recommended_roles = $1, updated_at = NOW() WHERE id = $2',
+        [JSON.stringify(recommendedRoles), hasExisting.id]
+      );
+    }
+  }
+
+  logger.info({ businessType: business_type, servicesCreated: created.services.length, rolesCreated: created.roles.length }, 'Template imported');
+  res.status(201).json({
+    message: `Imported ${created.services.length} services and ${created.roles.length} role templates`,
+    created,
+  });
+});
+
+// ──────────────────────────────────────────────
+// TEMPLATE EDITOR (custom templates)
+// ──────────────────────────────────────────────
+
+/** Helper: load custom templates from business_settings */
+async function getCustomTemplates() {
+  const settings = await queryOne('SELECT custom_templates FROM business_settings LIMIT 1');
+  if (settings && settings.custom_templates) {
+    try { return JSON.parse(settings.custom_templates); } catch { return {}; }
+  }
+  return {};
+}
+
+/** Helper: save custom templates */
+async function saveCustomTemplates(custom) {
+  const existing = await queryOne('SELECT id FROM business_settings LIMIT 1');
+  if (!existing) return;
+  await run(
+    'UPDATE business_settings SET custom_templates = $1, updated_at = NOW() WHERE id = $2',
+    [JSON.stringify(custom), existing.id]
+  );
+}
+
+/** Create a new custom template for any business type */
+router.post('/templates/create', async (req, res) => {
+  const { type_id, type_label, type_icon, roles, services } = req.body;
+  if (!type_id || !type_label) return sendValidationError(res, 'type_id and type_label are required');
+
+  // Reject IDs that conflict with built-in templates
+  if (TEMPLATES[type_id]) return sendValidationError(res, `Cannot create custom template with ID "${type_id}" — this is a built-in template type`);
+
+  const custom = await getCustomTemplates();
+  custom[type_id] = {
+    label: type_label,
+    icon: type_icon || '📋',
+    desc: req.body.desc || '',
+    roles: roles || [],
+    services: services || [],
+  };
+  await saveCustomTemplates(custom);
+
+  logger.info({ typeId: type_id }, 'Admin created custom template');
+  res.status(201).json({ message: 'Template created successfully', type_id });
+});
+
+/** Update a custom template */
+router.put('/templates/:type', async (req, res) => {
+  const custom = await getCustomTemplates();
+  if (!custom[req.params.type]) return sendNotFoundError(res, 'Custom template not found');
+
+  const { roles, services, label, icon, desc } = req.body;
+  if (label !== undefined) custom[req.params.type].label = label;
+  if (icon !== undefined) custom[req.params.type].icon = icon;
+  if (desc !== undefined) custom[req.params.type].desc = desc;
+  if (roles !== undefined) custom[req.params.type].roles = roles;
+  if (services !== undefined) custom[req.params.type].services = services;
+
+  await saveCustomTemplates(custom);
+  logger.info({ typeId: req.params.type }, 'Admin updated custom template');
+  res.json({ message: 'Template updated successfully' });
+});
+
+/** Delete a custom template */
+router.delete('/templates/:type', async (req, res) => {
+  const custom = await getCustomTemplates();
+  if (!custom[req.params.type]) return sendNotFoundError(res, 'Custom template not found');
+  delete custom[req.params.type];
+  await saveCustomTemplates(custom);
+  res.json({ message: 'Template deleted' });
 });
 
 module.exports = router;

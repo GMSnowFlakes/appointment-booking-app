@@ -92,21 +92,21 @@ export default function ICalManagerTab() {
 
       {/* How it works */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <div className="bg-white rounded-xl border border-border p-5 shadow-sm">
+        <div className="bg-surface rounded-xl border border-border p-5 shadow-sm">
           <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center mb-3">
             <span className="text-lg font-bold">1</span>
           </div>
           <h4 className="font-semibold text-text text-sm mb-1">Generate Feed</h4>
           <p className="text-xs text-text-muted">Create a unique private iCal link. Old links are automatically deactivated.</p>
         </div>
-        <div className="bg-white rounded-xl border border-border p-5 shadow-sm">
+        <div className="bg-surface rounded-xl border border-border p-5 shadow-sm">
           <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 border border-purple-200 flex items-center justify-center mb-3">
             <span className="text-lg font-bold">2</span>
           </div>
           <h4 className="font-semibold text-text text-sm mb-1">Copy the Link</h4>
           <p className="text-xs text-text-muted">Copy your private feed URL to use in your calendar app.</p>
         </div>
-        <div className="bg-white rounded-xl border border-border p-5 shadow-sm">
+        <div className="bg-surface rounded-xl border border-border p-5 shadow-sm">
           <div className="w-10 h-10 rounded-xl bg-green-50 text-green-600 border border-green-200 flex items-center justify-center mb-3">
             <span className="text-lg font-bold">3</span>
           </div>
@@ -116,7 +116,7 @@ export default function ICalManagerTab() {
       </div>
 
       {/* Active Feed */}
-      <div className="bg-white rounded-xl border border-border overflow-hidden">
+      <div className="bg-surface rounded-xl border border-border overflow-hidden">
         <div className="px-6 py-4 border-b border-border bg-surface-warm/50 flex items-center justify-between">
           <div>
             <h3 className="text-base font-serif font-bold text-text">Your Calendar Feed</h3>
@@ -192,7 +192,7 @@ export default function ICalManagerTab() {
 
       {/* Token history */}
       {tokens.length > 0 && (
-        <div className="bg-white rounded-xl border border-border overflow-hidden">
+        <div className="bg-surface rounded-xl border border-border overflow-hidden">
           <div className="px-6 py-4 border-b border-border bg-surface-warm/50">
             <h3 className="text-base font-serif font-bold text-text">Feed History</h3>
           </div>
@@ -200,12 +200,12 @@ export default function ICalManagerTab() {
             <div className="space-y-2">
               {tokens.map(t => (
                 <div key={t.id} className="flex items-center gap-4 p-3 rounded-xl border border-border/70">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${t.is_active ? 'bg-green-50 text-green-600' : 'bg-gray-50 text-gray-400'}`}>
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${t.is_active ? 'bg-green-50 text-green-600' : 'bg-surface-alt text-text-muted'}`}>
                     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${t.is_active ? 'bg-success-bg text-success border-green-200' : 'bg-gray-50 text-gray-500 border-gray-200'}`}>
+                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${t.is_active ? 'bg-success-bg text-success border-green-200' : 'badge-inactive'}`}>
                         {t.is_active ? 'Active' : 'Revoked'}
                       </span>
                       <span className="text-xs text-text-muted">

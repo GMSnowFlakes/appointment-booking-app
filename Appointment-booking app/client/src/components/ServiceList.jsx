@@ -16,7 +16,7 @@ function ServiceCard({ service, index, categoryColor, onBook }) {
 
   return (
     <div
-      className={`group relative bg-white rounded-2xl border border-border overflow-hidden card-hover animate-fade-in animate-stagger-${Math.min(index % 6 + 1, 6)}`}
+      className={`group relative bg-surface rounded-2xl border border-border overflow-hidden card-hover animate-fade-in animate-stagger-${Math.min(index % 6 + 1, 6)}`}
       style={{ boxShadow: 'var(--shadow-sm)' }}
     >
       {/* Image / Color Banner */}

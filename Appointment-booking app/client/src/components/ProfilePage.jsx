@@ -66,7 +66,7 @@ export default function ProfilePage() {
           { label: 'Cancelled', value: stats?.cancelled_count || 0, icon: '❌' },
           { label: 'Total Spent', value: `$${((stats?.total_spent_cents || 0) / 100).toFixed(0)}`, icon: '💰' },
         ].map((stat, i) => (
-          <div key={i} className="bg-white rounded-xl border border-border p-4 shadow-sm">
+          <div key={i} className="bg-surface rounded-xl border border-border p-4 shadow-sm">
             <div className="text-2xl mb-2">{stat.icon}</div>
             <p className="text-2xl font-bold text-text">{stat.value}</p>
             <p className="text-xs text-text-muted">{stat.label}</p>
@@ -75,7 +75,7 @@ export default function ProfilePage() {
       </div>
 
       {/* Profile Edit */}
-      <div className="bg-white rounded-2xl border border-border p-6 mb-8">
+      <div className="bg-surface rounded-2xl border border-border p-6 mb-8">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-serif font-semibold text-text">Profile Details</h2>
           <button onClick={() => setEditing(!editing)} className="text-sm text-primary hover:underline font-medium">
@@ -119,7 +119,7 @@ export default function ProfilePage() {
       </div>
 
       {/* Booking History */}
-      <div className="bg-white rounded-2xl border border-border p-6">
+      <div className="bg-surface rounded-2xl border border-border p-6">
         <h2 className="text-lg font-serif font-semibold text-text mb-4">
           Booking History ({appointments?.length || 0})
         </h2>

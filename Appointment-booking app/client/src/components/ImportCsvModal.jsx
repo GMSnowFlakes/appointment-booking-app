@@ -81,7 +81,7 @@ export default function ImportCsvModal({ open, onClose, endpoint, templateEndpoi
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" data-testid="import-csv-modal">
       <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} data-testid="modal-backdrop" />
-      <div className="relative bg-white rounded-2xl shadow-xl border border-border w-full max-w-lg animate-scale-in">
+      <div className="relative bg-surface rounded-2xl shadow-xl border border-border w-full max-w-lg animate-scale-in">
         <div className="px-6 py-5 border-b border-border flex items-center justify-between bg-surface-warm">
           <h2 className="text-lg font-serif font-bold text-text">{title || 'Import CSV'}</h2>
           <button onClick={onClose} className="w-8 h-8 rounded-xl text-text-muted hover:text-text hover:bg-surface-alt transition-all flex items-center justify-center" data-testid="modal-close-btn">

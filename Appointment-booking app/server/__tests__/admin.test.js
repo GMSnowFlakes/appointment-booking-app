@@ -232,4 +232,159 @@ describe('Admin API', () => {
       expect(res.body.error).toContain('Cannot delete your own');
     });
   });
+
+  describe('Business Type Templates (import)', () => {
+    let settingsRes;
+
+    beforeAll(async () => {
+      // Ensure business_settings row exists before testing import
+      settingsRes = await request(app)
+        .get('/api/admin/settings')
+        .set(authHeader(adminToken));
+    });
+
+    it('should list all built-in template types', async () => {
+      const res = await request(app)
+        .get('/api/admin/templates')
+        .set(authHeader(adminToken));
+
+      expect(res.status).toBe(200);
+      expect(res.body.templates.length).toBeGreaterThan(30);
+      const ids = res.body.templates.map(t => t.id);
+      expect(ids).toContain('salon');
+      expect(ids).toContain('barbershop');
+      expect(ids).toContain('massage');
+      expect(ids).toContain('custom');
+      res.body.templates.forEach(t => {
+        expect(t).toHaveProperty('roleCount');
+        expect(t).toHaveProperty('serviceCount');
+        expect(t).toHaveProperty('custom');
+      });
+    });
+
+    it('should get template details for a business type', async () => {
+      const res = await request(app)
+        .get('/api/admin/templates/barbershop')
+        .set(authHeader(adminToken));
+
+      expect(res.status).toBe(200);
+      expect(res.body.template).toHaveProperty('roles');
+      expect(res.body.template).toHaveProperty('services');
+      expect(res.body.template.roles[0].title).toBe('Barber');
+      expect(res.body.template.services.length).toBeGreaterThanOrEqual(6);
+      expect(res.body.custom).toBe(false);
+    });
+
+    it('should return 401 for unauthorized access', async () => {
+      const res = await request(app).get('/api/admin/templates');
+      expect(res.status).toBe(401);
+    });
+
+    it('should return 403 for non-admin access', async () => {
+      const res = await request(app)
+        .get('/api/admin/templates')
+        .set(authHeader(customerToken));
+      expect(res.status).toBe(403);
+    });
+
+    it('should import services and roles from a template', async () => {
+      // Count services beforehand
+      const beforeRes = await request(app)
+        .get('/api/admin/services')
+        .set(authHeader(adminToken));
+      const beforeCount = beforeRes.body.services.length;
+
+      const res = await request(app)
+        .post('/api/admin/templates/import')
+        .set(authHeader(adminToken))
+        .send({ business_type: 'barbershop', import_roles: true, import_services: true });
+
+      expect(res.status).toBe(201);
+      expect(res.body.message).toMatch(/Imported \d+ services/);
+      expect(res.body.created.services.length).toBeGreaterThan(0);
+      expect(res.body.created.roles.length).toBeGreaterThan(0);
+      expect(res.body.created.roles[0].title).toBe('Barber');
+
+      // Verify services were actually added
+      const afterRes = await request(app)
+        .get('/api/admin/services')
+        .set(authHeader(adminToken));
+      expect(afterRes.body.services.length).toBe(beforeCount + res.body.created.services.length);
+    });
+
+    it('should skip duplicate services on re-import', async () => {
+      const res = await request(app)
+        .post('/api/admin/templates/import')
+        .set(authHeader(adminToken))
+        .send({ business_type: 'barbershop' });
+
+      expect(res.status).toBe(201);
+      expect(res.body.created.services.length).toBe(0);
+      expect(res.body.created.roles.length).toBe(0);
+    });
+
+    it('should reject missing business_type', async () => {
+      const res = await request(app)
+        .post('/api/admin/templates/import')
+        .set(authHeader(adminToken))
+        .send({});
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('business_type');
+    });
+
+    it('should reject unknown business_type', async () => {
+      const res = await request(app)
+        .post('/api/admin/templates/import')
+        .set(authHeader(adminToken))
+        .send({ business_type: 'non-existent-type' });
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toContain('No template found');
+    });
+
+    it('should import services only (skip roles)', async () => {
+      const res = await request(app)
+        .post('/api/admin/templates/import')
+        .set(authHeader(adminToken))
+        .send({ business_type: 'massage', import_roles: false, import_services: true });
+
+      expect(res.status).toBe(201);
+      expect(res.body.created.services.length).toBeGreaterThan(0);
+      expect(res.body.created.roles.length).toBe(0);
+
+      // Names should include massage-specific services
+      const names = res.body.created.services.map(s => s.name);
+      expect(names).toContain('Swedish Massage');
+      expect(names).toContain('Deep Tissue Massage');
+    });
+
+    it('should import roles only (skip services)', async () => {
+      // Use a type with multiple roles
+      const res = await request(app)
+        .post('/api/admin/templates/import')
+        .set(authHeader(adminToken))
+        .send({ business_type: 'salon', import_roles: true, import_services: false });
+
+      expect(res.status).toBe(201);
+      expect(res.body.created.services.length).toBe(0);
+      expect(res.body.created.roles.length).toBeGreaterThan(0);
+
+      const titles = res.body.created.roles.map(r => r.title);
+      expect(titles).toContain('Stylist');
+      expect(titles).toContain('Esthetician');
+    });
+
+    it('should import the custom business type (empty services)', async () => {
+      const res = await request(app)
+        .post('/api/admin/templates/import')
+        .set(authHeader(adminToken))
+        .send({ business_type: 'custom' });
+
+      expect(res.status).toBe(201);
+      expect(res.body.created.services.length).toBe(0);
+      expect(res.body.created.roles.length).toBeGreaterThan(0);
+      expect(res.body.created.roles[0].title).toBe('Business Owner');
+    });
+  });
 });

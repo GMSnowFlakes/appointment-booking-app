@@ -32,6 +32,99 @@ const tables = {};
 const sequences = {};
 const TABLE_NAMES = ['users', 'services', 'appointments', 'business_settings'];
 
+// ─── Column defaults per table (matching DB schema DEFAULT clauses) ───
+// The mock DB doesn't run migrations, so we must apply defaults explicitly.
+// These map each table to { columnName: defaultVal } for every column that
+// has a DB-level DEFAULT that may not be provided in route INSERT statements.
+
+const now = () => new Date().toISOString();
+
+const TABLE_DEFAULTS = {
+  users:                  { created_at: now },
+  services:               { created_at: now, is_active: 1 },
+  appointments:           { created_at: now, updated_at: now, reminder_sent: 0 },
+  staff_members:          { is_active: 1, max_daily_bookings: 0, created_at: now, updated_at: now },
+  staff_services:         { is_active: 1 },
+  staff_availability:     { is_active: 1, created_at: now },
+  staff_exceptions:       { created_at: now },
+  staff_appointments:     { created_at: now },
+  customer_profiles:      { total_visits: 0, total_spent_cents: 0, tags: '{}', metadata: '{}', created_at: now, updated_at: now },
+  sms_preferences:        { phone_verified: 0, sms_reminders: 1, sms_confirmation: 1, sms_cancellation: 1, sms_reschedule: 1, created_at: now, updated_at: now },
+  sms_log:                { created_at: now },
+  coupons:                { current_uses: 0, is_active: 1, min_appointment_amount: 0, max_uses: 0, max_uses_per_user: 1, created_at: now },
+  appointment_coupons:    { created_at: now },
+  payment_intents:        { currency: 'usd', deposit_amount: 0, deposit_refunded: 0, metadata: '{}', created_at: now, updated_at: now },
+  refunds:                { status: 'pending', created_at: now },
+  calendar_tokens:        { token_type: 'Bearer', calendar_id: 'primary', sync_enabled: 1, created_at: now, updated_at: now },
+  calendar_events:        { calendar_id: 'primary', status: 'confirmed', created_at: now, updated_at: now },
+  webhook_endpoints:      { is_active: 1, failure_count: 0, created_at: now, updated_at: now },
+  webhook_deliveries:     { success: 0, created_at: now },
+  booking_widgets:        { name: 'Default Widget', is_active: 1, primary_color: '#e11d48', button_text: 'Book Now', header_text: 'Book an Appointment', show_staff: 1, show_services: 1, created_at: now, updated_at: now },
+  tax_rates:              { tax_type: 'inclusive', is_active: 1, created_at: now },
+  dynamic_pricing_rules:  { priority: 0, is_active: 1, created_at: now },
+  early_bird_discounts:   { is_active: 1, created_at: now },
+  last_minute_deals:      { is_active: 1, current_used: 0, max_quantity: 0, created_at: now },
+  user_credits:           { balance_cents: 0, lifetime_credits: 0, created_at: now, updated_at: now },
+  credit_transactions:    { created_at: now },
+  gift_cards:             { is_digital: 1, is_active: 1, created_at: now },
+  gift_card_redemptions:  { created_at: now },
+  products:               { cost_cents: 0, stock: 0, is_active: 1, created_at: now, updated_at: now },
+  ical_tokens:            { calendar_type: 'appointments', is_active: 1, created_at: now },
+  api_keys:               { is_active: 1, permissions: '{}', created_at: now },
+  integration_settings:   { is_enabled: 0, settings: '{}', created_at: now, updated_at: now },
+  audit_log:              { created_at: now },
+  ip_whitelist:           { created_at: now },
+  public_booking_pages:   { is_active: 1, title: 'Book an Appointment', require_auth: 0, require_phone: 0, created_at: now, updated_at: now },
+  service_expenses:       { expense_type: 'supplies', recurring: 0, created_at: now },
+  loyalty_points:         { points: 0, lifetime_points: 0, tier: 'bronze', created_at: now, updated_at: now },
+  loyalty_transactions:   { created_at: now },
+  referrals:              { status: 'pending', reward_type: 'credit', reward_amount_cents: 0, created_at: now, updated_at: now },
+  staff_leave_requests:   { created_at: now },
+  staff_shifts:           { created_at: now },
+  staff_clock_entries:    { created_at: now },
+  staff_portfolio_items:  { created_at: now },
+  staff_certifications:   { created_at: now },
+  staff_documents:        { created_at: now },
+  staff_breaks:           { created_at: now },
+  buffer_settings:        { created_at: now },
+  video_meetings:         { created_at: now },
+  waiting_list:           { created_at: now },
+  walk_in_tokens:         { created_at: now },
+  email_campaigns:        { created_at: now },
+  packages:               { created_at: now },
+  user_packages:          { created_at: now },
+  invoices:               { currency: 'usd', discount_cents: 0, tax_cents: 0, tip_cents: 0, status: 'paid', created_at: now },
+  invoice_items:          { quantity: 1, type: 'service', created_at: now },
+  booking_rules:          { created_at: now },
+  customer_blacklist:     { created_at: now },
+  cancelation_policies:   { cancel_window_hours: 24, cancel_fee_percent: 0, no_show_fee_percent: 100, is_active: 1, created_at: now },
+  no_show_fees:           { status: 'pending', created_at: now },
+  appointment_products:   { quantity: 1, created_at: now },
+  role_permissions:       { permissions: '{}', created_at: now, updated_at: now },
+  login_history:          { login_method: 'password', success: 0, created_at: now },
+  user_sessions:          { is_active: 1, created_at: now },
+  social_accounts:        { created_at: now },
+  ai_predictions:         { created_at: now },
+  bnpl_providers:         { is_active: 0, environment: 'sandbox', created_at: now, updated_at: now },
+  business_settings:     { business_type: 'salon', business_description: '', primary_color: '#e11d48', recommended_roles: '[]', disabled_templates: '[]', custom_templates: '{}', created_at: now, updated_at: now },
+  tip_settings:           { is_enabled: 1, default_percentages: '{15,18,20,25}', custom_enabled: 1, updated_at: now },
+  tenants:                { business_type: 'salon', primary_color: '#e11d48', is_active: 1, max_staff: 5, max_services: 20, features: '{}', created_at: now, updated_at: now },
+  tenant_users:           { role: 'member', joined_at: now },
+  tenant_subscriptions:   { plan: 'free', status: 'active', created_at: now, updated_at: now },
+  conversations:          { created_at: now, updated_at: now },
+  conversation_participants: { is_admin: 0 },
+  messages:               { message_type: 'text', created_at: now },
+  notification_templates: { is_active: 1, created_at: now, updated_at: now },
+  push_subscriptions:     { device_type: 'web', is_active: 1, created_at: now },
+  translations:           { created_at: now, updated_at: now },
+  gdpr_requests:          { status: 'pending', requested_at: now },
+  appointment_packages:   { created_at: now },
+  loyalty_rewards:        { is_active: 1, created_at: now },
+  group_bookings:         { current_bookings: 0, is_active: 1, created_at: now, updated_at: now },
+  group_booking_attendees: { status: 'confirmed', created_at: now },
+  customer_tags:          { created_at: now },
+};
+
 function ensureTable(name) {
   if (!tables[name]) {
     tables[name] = [];
@@ -57,11 +150,12 @@ function reset() {
 function seedDefaults() {
   const bcrypt = require('bcryptjs');
   const pw = bcrypt.hashSync('password123', 10);
+  const customerPw = bcrypt.hashSync('password123', 10);
 
   tables.users = [
     { id: 1, name: 'Admin User', email: 'admin@test.com', password: pw, role: 'admin', created_at: new Date().toISOString(), email_reminders: null },
-    { id: 2, name: 'Test Customer', email: 'customer@test.com', password: pw, role: 'customer', created_at: new Date().toISOString(), email_reminders: null },
-    { id: 3, name: 'Jane Doe', email: 'jane@test.com', password: pw, role: 'customer', created_at: new Date().toISOString(), email_reminders: null },
+    { id: 2, name: 'Test Customer', email: 'customer@test.com', password: customerPw, role: 'customer', created_at: new Date().toISOString(), email_reminders: null },
+    { id: 3, name: 'Jane Doe', email: 'jane@test.com', password: customerPw, role: 'customer', created_at: new Date().toISOString(), email_reminders: null },
   ];
   sequences.users = 3;
 
@@ -925,6 +1019,9 @@ function handleSelect(sql, params) {
 
   // WHERE filtering
   if (whereClause) {
+    // Strip LOWER() function calls for mock compatibility:
+    // LOWER(name) → name, LOWER($1) → $1 (case-insensitive becomes regular comparison)
+    whereClause = whereClause.replace(/LOWER\(([^)]+)\)/gi, '$1');
     rows = rows.filter(row => {
       // Pre-process subquery by evaluating against this row
       let wc = whereClause;
@@ -1223,13 +1320,15 @@ function handleInsert(sql, params) {
   // No conflict or conflict not detected — insert normally
   const row = { id: nextId(tableName), ...newValues };
 
-  // Add default columns
-  if (tableName === 'users' && row.created_at === undefined) row.created_at = new Date().toISOString();
-  if (tableName === 'services' && row.created_at === undefined) row.created_at = new Date().toISOString();
-  if (tableName === 'services' && row.is_active === undefined) row.is_active = 1;
-  if (tableName === 'appointments' && row.created_at === undefined) row.created_at = new Date().toISOString();
-  if (tableName === 'appointments' && row.updated_at === undefined) row.updated_at = new Date().toISOString();
-  if (tableName === 'appointments' && row.reminder_sent === undefined) row.reminder_sent = 0;
+  // Apply DB-level defaults for all tables (matching migration schema DEFAULT clauses)
+  const tableDefaults = TABLE_DEFAULTS[tableName];
+  if (tableDefaults) {
+    for (const [col, defaultVal] of Object.entries(tableDefaults)) {
+      if (row[col] === undefined) {
+        row[col] = typeof defaultVal === 'function' ? defaultVal() : defaultVal;
+      }
+    }
+  }
 
   tables[tableName].push(row);
 

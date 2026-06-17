@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { safeFetchJson, safeFetchShape } from '../hooks/useSafeFetch';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { useBusiness } from '../context/BusinessContext';
@@ -45,16 +46,17 @@ export default function WidgetsTab() {
   async function fetchWidgets() {
     setLoading(true);
     try {
-      const res = await fetchWithAuth('/api/admin/widgets');
-      const d = await res.json();
-      if (res.ok) setWidgets(d.widgets || []);
-    } catch { /* silent */ }
+      const res = await fetchWithAuth('/api/widget/admin');
+      const sf = await safeFetchJson(res, 'Widgets');
+      if (sf.ok) setWidgets(sf.data?.widgets || []);
+      else console.warn(sf.error);
+    } catch (err) { console.warn('Widgets | Error:', err.message); }
     setLoading(false);
   }
 
   async function handleSave(data) {
     try {
-      const url = editing ? `/api/admin/widgets/${editing.id}` : '/api/admin/widgets';
+      const url = editing ? `/api/widget/admin/${editing.id}` : '/api/widget/admin';
       const method = editing ? 'PUT' : 'POST';
       const res = await fetchWithAuth(url, {
         method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
@@ -69,7 +71,7 @@ export default function WidgetsTab() {
 
   async function handleToggle(w) {
     try {
-      const res = await fetchWithAuth(`/api/admin/widgets/${w.id}`, {
+      const res = await fetchWithAuth(`/api/widget/admin/${w.id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_active: !w.is_active }),
       });
@@ -80,7 +82,7 @@ export default function WidgetsTab() {
   async function handleDelete() {
     if (!deleteConfirm) return;
     try {
-      const res = await fetchWithAuth(`/api/admin/widgets/${deleteConfirm.id}`, { method: 'DELETE' });
+      const res = await fetchWithAuth(`/api/widget/admin/${deleteConfirm.id}`, { method: 'DELETE' });
       if (res.ok) { toast.success('Widget deleted'); setDeleteConfirm(null); fetchWidgets(); }
     } catch (err) { toast.error(err.message); }
   }
@@ -103,21 +105,21 @@ export default function WidgetsTab() {
 
       {/* How it works */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
-        <div className="bg-white rounded-xl border border-border p-4 shadow-sm">
+        <div className="bg-surface rounded-xl border border-border p-4 shadow-sm">
           <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center mb-2">
             <span className="text-base font-bold">1</span>
           </div>
           <h4 className="font-semibold text-text text-sm mb-1">Choose Style</h4>
           <p className="text-xs text-text-muted">Set button text, colors, and which services/staff to show.</p>
         </div>
-        <div className="bg-white rounded-xl border border-border p-4 shadow-sm">
+        <div className="bg-surface rounded-xl border border-border p-4 shadow-sm">
           <div className="w-9 h-9 rounded-lg bg-purple-50 text-purple-600 border border-purple-200 flex items-center justify-center mb-2">
             <span className="text-base font-bold">2</span>
           </div>
           <h4 className="font-semibold text-text text-sm mb-1">Copy Code</h4>
           <p className="text-xs text-text-muted">Copy the embed snippet and paste it into your website's HTML.</p>
         </div>
-        <div className="bg-white rounded-xl border border-border p-4 shadow-sm">
+        <div className="bg-surface rounded-xl border border-border p-4 shadow-sm">
           <div className="w-9 h-9 rounded-lg bg-green-50 text-green-600 border border-green-200 flex items-center justify-center mb-2">
             <span className="text-base font-bold">3</span>
           </div>
@@ -127,7 +129,7 @@ export default function WidgetsTab() {
       </div>
 
       {loading ? <Spinner /> : widgets.length === 0 ? (
-        <div className="bg-white rounded-xl border border-border p-12 text-center">
+        <div className="bg-surface rounded-xl border border-border p-12 text-center">
           <div className="w-14 h-14 mx-auto mb-4 bg-primary-bg rounded-2xl flex items-center justify-center">
             <svg className="w-6 h-6 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
               <rect x="2" y="2" width="20" height="8" rx="2" /><rect x="2" y="14" width="20" height="8" rx="2" /><path d="M6 6h.01M6 18h.01" />
@@ -147,10 +149,10 @@ export default function WidgetsTab() {
             const embedSnippet = `<script src="${baseUrl}/api/widget/${w.widget_token}/embed.js"></script>`;
 
             return (
-              <div key={w.id} className={`bg-white rounded-xl border ${isActive ? 'border-border' : 'border-dashed border-border/50'} overflow-hidden shadow-sm hover:shadow-md transition-all`}>
+              <div key={w.id} className={`bg-surface rounded-xl border ${isActive ? 'border-border' : 'border-dashed border-border/50'} overflow-hidden shadow-sm hover:shadow-md transition-all`}>
                 <div className="px-6 py-4 border-b border-border bg-surface-warm/50 flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${isActive ? 'bg-primary-bg' : 'bg-gray-50'}`}
+                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${isActive ? 'bg-primary-bg' : 'bg-surface-alt'}`}
                       style={isActive ? { backgroundColor: (w.primary_color || primaryColor) + '15' } : {}}>
                       <svg className={`w-4 h-4 ${isActive ? 'text-primary' : 'text-text-muted'}`}
         style={isActive ? { color: w.primary_color || primaryColor } : {}} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -160,7 +162,7 @@ export default function WidgetsTab() {
                     <div>
                       <h3 className="font-semibold text-text">{w.name}</h3>
                       <div className="flex items-center gap-2 text-xs text-text-muted">
-                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${isActive ? 'bg-success-bg text-success border-green-200' : 'bg-gray-50 text-gray-500 border-gray-200'}`}>
+                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${isActive ? 'bg-success-bg text-success border-green-200' : 'badge-inactive'}`}>
                           {isActive ? 'Published' : 'Inactive'}
                         </span>
                         <span>· Token: <code className="font-mono">{w.widget_token?.slice(0, 12)}...</code></span>
@@ -218,7 +220,7 @@ export default function WidgetsTab() {
       {deleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setDeleteConfirm(null)} />
-          <div className="relative bg-white rounded-2xl shadow-xl border border-border w-full max-w-sm animate-scale-in p-6">
+          <div className="relative bg-surface rounded-2xl shadow-xl border border-border w-full max-w-sm animate-scale-in p-6">
             <h3 className="text-lg font-serif font-bold text-text mb-2">Delete Widget?</h3>
             <p className="text-sm text-text-secondary mb-4">Permanently delete "{deleteConfirm.name}"? Embed snippets on your website will stop working.</p>
             <div className="flex gap-3">
@@ -293,8 +295,8 @@ function WidgetFormModal({ widget, onClose, onSave }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-xl border border-border w-full max-w-lg animate-scale-in overflow-y-auto max-h-screen" style={{ maxHeight: '90vh' }}>
-        <div className="px-6 py-4 border-b border-border bg-surface-warm sticky top-0 bg-white z-10">
+      <div className="relative bg-surface rounded-2xl shadow-xl border border-border w-full max-w-lg animate-scale-in overflow-y-auto max-h-screen" style={{ maxHeight: '90vh' }}>
+        <div className="px-6 py-4 border-b border-border bg-surface-warm sticky top-0 bg-surface z-10">
           <h3 className="text-lg font-serif font-bold text-text">{widget ? 'Edit Widget' : 'Create Widget'}</h3>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">

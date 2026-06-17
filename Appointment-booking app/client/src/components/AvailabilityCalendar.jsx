@@ -62,6 +62,100 @@ function ChevronRight() {
   );
 }
 
+// ─── Drag-to-Select Time Column ────────────
+// A vertical column of 30-min time slots that supports click-to-select and drag-to-scan
+
+function TimeColumn({ slots, selectedSlot, onSelect, isSlotBooked, canFit, disabled, formatTime }) {
+  const [dragHover, setDragHover] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
+
+  function selectSlot(slot) {
+    if (disabled || isSlotBooked(slot) || !canFit(slot)) return;
+    onSelect(slot);
+  }
+
+  function handleMouseDown(slot) {
+    if (disabled || isSlotBooked(slot) || !canFit(slot)) return;
+    setIsDragging(true);
+    setDragHover(slot);
+    onSelect(slot);
+  }
+
+  function handleMouseMove(slot) {
+    if (!isDragging) return;
+    if (isSlotBooked(slot) || !canFit(slot)) return;
+    setDragHover(slot);
+    onSelect(slot);
+  }
+
+  function handleMouseUp() {
+    setIsDragging(false);
+    setDragHover(null);
+  }
+
+  // Global mouseup to catch drags that leave the component
+  useEffect(() => {
+    if (isDragging) {
+      window.addEventListener('mouseup', handleMouseUp);
+      return () => window.removeEventListener('mouseup', handleMouseUp);
+    }
+  }, [isDragging]);
+
+  return (
+    <div
+      className="relative select-none"
+      onMouseLeave={() => { if (isDragging) { handleMouseUp(); } }}
+    >
+      <div className="space-y-1">
+        {slots.map(slot => {
+          const booked = isSlotBooked(slot);
+          const fits = canFit(slot);
+          const isSelected = slot === selectedSlot;
+          const isHovering = slot === dragHover && isDragging;
+          const canSelect = !booked && fits;
+
+          let cellStyle = '';
+          if (booked || !fits) {
+            cellStyle = 'bg-error-bg text-error/60 line-through cursor-not-allowed border border-red-200';
+          } else if (isSelected || isHovering) {
+            cellStyle = 'bg-primary text-white shadow-sm border border-primary font-semibold';
+          } else {
+            cellStyle = 'bg-success-bg text-success hover:bg-green-100 cursor-pointer border border-green-200';
+          }
+
+          return (
+            <button
+              key={slot}
+              type="button"
+              disabled={disabled || !canSelect}
+              onClick={() => selectSlot(slot)}
+              onMouseDown={() => handleMouseDown(slot)}
+              onMouseEnter={() => handleMouseMove(slot)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectSlot(slot); } }}
+              className={`w-full px-3 py-2 rounded-lg text-xs font-medium transition-all duration-100 text-left ${cellStyle} ${disabled ? 'cursor-not-allowed' : ''}`}
+              style={{ height: '28px' }}
+            >
+              <span className="flex items-center gap-2">
+                {isSelected && (
+                  <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M2.5 6l2.5 2.5 4.5-5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+                <span className={isSelected ? '' : 'ml-[18px]'}>{formatTime(slot)}</span>
+                {booked && <span className="ml-auto text-[10px]">Booked</span>}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      {/* Drag hint */}
+      {!disabled && slots.length > 0 && (
+        <p className="text-[10px] text-text-muted text-center mt-2">Click or drag to select</p>
+      )}
+    </div>
+  );
+}
+
 export default function AvailabilityCalendar({
   date: selectedDate,
   time: selectedTime,
@@ -234,7 +328,7 @@ export default function AvailabilityCalendar({
         <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-error" />Full</span>
       </div>
 
-      {/* Expanded Day: Time Slots */}
+      {/* Expanded Day: Drag-to-Select Time Slots */}
       {expandedDay && (
         <div className="animate-slide-up border-t border-border pt-4 mt-2">
           <div className="flex items-center justify-between mb-3">
@@ -253,37 +347,15 @@ export default function AvailabilityCalendar({
           {!isAvailable(expandedDay) ? (
             <p className="text-sm text-text-muted text-center py-4">This date is in the past.</p>
           ) : (
-            <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto pb-1">
-              {TIME_SLOTS.map(slot => {
-                const occupied = isSlotOccupied(expandedDay, slot);
-                const fits = canFitService(expandedDay, slot);
-                const isSelected = selectedDate === expandedDay && selectedTime === slot;
-                const canSelect = !occupied && fits;
-
-                let slotStyle = 'border border-border text-text-secondary bg-white';
-                if (occupied || !fits) {
-                  slotStyle = 'border border-red-200 bg-error-bg text-error/50 line-through cursor-not-allowed';
-                }
-                if (isSelected) {
-                  slotStyle = 'border border-primary bg-primary text-white shadow-sm';
-                }
-                if (!occupied && fits && !isSelected) {
-                  slotStyle = 'border border-green-200 bg-success-bg text-success hover:bg-green-100 cursor-pointer';
-                }
-
-                return (
-                  <button
-                    key={slot}
-                    type="button"
-                    disabled={disabled || !canSelect}
-                    onClick={() => canSelect && handleSlotSelect(expandedDay, slot)}
-                    className={`px-2.5 py-2 rounded-xl text-xs font-medium transition-all duration-150 ${slotStyle} ${disabled ? 'cursor-not-allowed' : ''}`}
-                  >
-                    {formatTime(slot)}
-                  </button>
-                );
-              })}
-            </div>
+            <TimeColumn
+              slots={TIME_SLOTS}
+              selectedSlot={selectedDate === expandedDay ? selectedTime : null}
+              onSelect={(slot) => handleSlotSelect(expandedDay, slot)}
+              isSlotBooked={(slot) => isSlotOccupied(expandedDay, slot)}
+              canFit={(slot) => canFitService(expandedDay, slot)}
+              disabled={disabled}
+              formatTime={formatTime}
+            />
           )}
         </div>
       )}

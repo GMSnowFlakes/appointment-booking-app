@@ -26,7 +26,7 @@ export function SkeletonBlock({ className = '' }) {
 
 export function ServiceCardSkeleton() {
   return (
-    <div className="bg-white rounded-2xl border border-border overflow-hidden animate-pulse" role="status" aria-label="Loading service card">
+    <div className="bg-surface rounded-2xl border border-border overflow-hidden animate-pulse" role="status" aria-label="Loading service card">
       <div className="h-1.5 w-full bg-border/40" />
       <div className="p-5 sm:p-6 space-y-3">
         <div className="flex items-center gap-2">
@@ -49,7 +49,7 @@ export function ServiceCardSkeleton() {
 
 export function AppointmentCardSkeleton() {
   return (
-    <div className="bg-white rounded-2xl border border-border p-5 sm:p-6 animate-pulse" role="status" aria-label="Loading appointment card">
+    <div className="bg-surface rounded-2xl border border-border p-5 sm:p-6 animate-pulse" role="status" aria-label="Loading appointment card">
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 space-y-3">
           <div className="flex items-center gap-2.5">
@@ -76,7 +76,7 @@ export function AppointmentCardSkeleton() {
 
 export function StatsCardSkeleton() {
   return (
-    <div className="bg-white rounded-xl border border-border p-5 animate-pulse" role="status" aria-label="Loading stats card">
+    <div className="bg-surface rounded-xl border border-border p-5 animate-pulse" role="status" aria-label="Loading stats card">
       <div className="flex items-center gap-3">
         <SkeletonBlock className="w-10 h-10 rounded-xl" />
         <div className="space-y-2 flex-1">

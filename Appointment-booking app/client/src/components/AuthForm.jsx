@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { useBusiness } from '../context/BusinessContext';
@@ -32,10 +33,13 @@ function FeatureItem({ text }) {
   );
 }
 
-export default function AuthForm({ mode, onSuccess, onToggle }) {
+export default function AuthForm() {
   const { login, register } = useAuth();
   const toast = useToast();
   const { settings } = useBusiness();
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const mode = pathname === '/register' ? 'register' : 'login';
   const [form, setForm] = useState({ name: '', email: '', password: '' });
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -60,7 +64,7 @@ export default function AuthForm({ mode, onSuccess, onToggle }) {
         await register(form.name, form.email, form.password);
         toast.success(`Account created! Welcome, ${form.name}!`);
       }
-      onSuccess?.();
+      navigate('/');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -276,7 +280,7 @@ export default function AuthForm({ mode, onSuccess, onToggle }) {
 
           <button
             type="button"
-            onClick={onToggle}
+            onClick={() => navigate(mode === 'login' ? '/register' : '/login')}
             className="btn btn-secondary w-full mt-4"
           >
             {isLogin ? 'Create a free account' : 'Sign in instead'}

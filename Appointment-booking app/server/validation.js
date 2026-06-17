@@ -58,8 +58,8 @@ const statusUpdateSchema = z.object({
 });
 
 const roleUpdateSchema = z.object({
-  role: z.enum(['customer', 'admin'], {
-    errorMap: () => ({ message: 'Role must be one of: customer, admin' }),
+  role: z.enum(['customer', 'admin', 'staff'], {
+    errorMap: () => ({ message: 'Role must be one of: customer, admin, staff' }),
   }),
 });
 

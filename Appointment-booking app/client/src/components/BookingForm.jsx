@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { useBusiness } from '../context/BusinessContext';
@@ -73,10 +74,11 @@ function StepBar({ current, color }) {
   );
 }
 
-export default function BookingForm({ onBooked, onCheckout }) {
+export default function BookingForm() {
   const { user, fetchWithAuth } = useAuth();
   const toast = useToast();
   const { settings } = useBusiness();
+  const navigate = useNavigate();
   const [services, setServices] = useState([]);
   const [selectedService, setSelectedService] = useState('');
   const [date, setDate] = useState('');
@@ -123,8 +125,7 @@ export default function BookingForm({ onBooked, onCheckout }) {
         const svc = selectedServiceDetails;
         const apt = data.appointment || { id: data.id, service_id: svc?.id, service_name: svc?.name, price: svc?.price, duration: svc?.duration, deposit_required: svc?.deposit_required || 0 };
         setSelectedService(''); setDate(''); setTime(''); setNotes(''); setStep(1);
-        if (onCheckout) onCheckout(apt);
-        else onBooked?.();
+        navigate('/checkout', { state: { appointment: apt } });
       } else {
         toast.error(data.error || 'Failed to book appointment');
         setMessage({ type: 'error', text: data.error || 'Failed to book appointment' });

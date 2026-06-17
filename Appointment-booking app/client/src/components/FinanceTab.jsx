@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { safeFetchJson } from '../hooks/useSafeFetch';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { useBusiness } from '../context/BusinessContext';
@@ -20,7 +21,7 @@ function Spinner() {
 
 function SectionCard({ title, description, children, action }) {
   return (
-    <div className="bg-white rounded-xl border border-border overflow-hidden">
+    <div className="bg-surface rounded-xl border border-border overflow-hidden">
       <div className="px-6 py-4 border-b border-border bg-surface-warm/50 flex items-center justify-between">
         <div>
           <h3 className="text-base font-serif font-bold text-text">{title}</h3>
@@ -51,9 +52,10 @@ function TaxRatesSection() {
     setLoading(true);
     try {
       const res = await fetchWithAuth('/api/admin/tax-rates');
-      const d = await res.json();
-      if (res.ok) setRates(d.tax_rates || []);
-    } catch { /* silent */ }
+      const sf = await safeFetchJson(res, 'TaxRates');
+      if (sf.ok) setRates(sf.data?.tax_rates || []);
+      else console.warn(sf.error);
+    } catch (err) { console.warn('TaxRates | Error:', err.message); }
     setLoading(false);
   }
 
@@ -77,7 +79,7 @@ function TaxRatesSection() {
         body: JSON.stringify({ is_active: !rate.is_active }),
       });
       fetchRates();
-    } catch { /* silent */ }
+    } catch (err) { console.warn('TaxRates toggle | Error:', err.message); }
   }
 
   if (loading) return <Spinner />;
@@ -105,7 +107,7 @@ function TaxRatesSection() {
                   <span className="font-medium text-text">{r.name}</span>
                   <span className="text-sm font-bold text-primary">{r.rate_percent}%</span>
                   <span className="text-[10px] px-2 py-0.5 rounded-full border bg-surface-alt text-text-muted">{r.tax_type}</span>
-                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${r.is_active ? 'bg-success-bg text-success border-green-200' : 'bg-gray-50 text-gray-500 border-gray-200'}`}>
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${r.is_active ? 'bg-success-bg text-success border-green-200' : 'badge-inactive'}`}>
                     {r.is_active ? 'Active' : 'Inactive'}
                   </span>
                 </div>
@@ -151,7 +153,7 @@ function TaxRateFormModal({ rate, onClose, onSave }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-xl border border-border w-full max-w-sm animate-scale-in p-6">
+      <div className="relative bg-surface rounded-2xl shadow-xl border border-border w-full max-w-sm animate-scale-in p-6">
         <h3 className="text-lg font-serif font-bold text-text mb-4">{rate ? 'Edit Tax Rate' : 'Add Tax Rate'}</h3>
         <form onSubmit={handleSubmit} className="space-y-3">
           <div>
@@ -204,16 +206,17 @@ function TipSettingsSection() {
     setLoading(true);
     try {
       const res = await fetchWithAuth('/api/admin/tip-settings');
-      const d = await res.json();
-      if (res.ok && d.tip_settings) {
+      const sf = await safeFetchJson(res, 'TipSettings');
+      if (sf.ok && sf.data?.tip_settings) {
+        const d = sf.data;
         setTipSettings(d.tip_settings);
         setForm({
           is_enabled: !!d.tip_settings.is_enabled,
           default_percentages: d.tip_settings.default_percentages || [15, 18, 20, 25],
           custom_enabled: !!d.tip_settings.custom_enabled,
         });
-      }
-    } catch { /* silent */ }
+      } else if (!sf.ok) { console.warn(sf.error); }
+    } catch (err) { console.warn('TipSettings | Error:', err.message); }
     setLoading(false);
   }
 
@@ -326,9 +329,10 @@ function EarlyBirdSection() {
     setLoading(true);
     try {
       const res = await fetchWithAuth('/api/admin/early-bird');
-      const d = await res.json();
-      if (res.ok) setDiscounts(d.early_bird_discounts || []);
-    } catch { /* silent */ }
+      const sf = await safeFetchJson(res, 'EarlyBird');
+      if (sf.ok) setDiscounts(sf.data?.early_bird_discounts || []);
+      else console.warn(sf.error);
+    } catch (err) { console.warn('EarlyBird | Error:', err.message); }
     setLoading(false);
   }
 
@@ -351,7 +355,7 @@ function EarlyBirdSection() {
         body: JSON.stringify({ is_active: !d.is_active }),
       });
       fetchDiscounts();
-    } catch { /* silent */ }
+    } catch (err) { console.warn('EarlyBird toggle | Error:', err.message); }
   }
 
   if (loading) return <Spinner />;
@@ -395,7 +399,7 @@ function EarlyBirdSection() {
       {formOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => { setFormOpen(false); setEditing(null); }} />
-          <div className="relative bg-white rounded-2xl shadow-xl border border-border w-full max-w-sm animate-scale-in p-6">
+          <div className="relative bg-surface rounded-2xl shadow-xl border border-border w-full max-w-sm animate-scale-in p-6">
             <h3 className="text-lg font-serif font-bold text-text mb-4">{editing ? 'Edit Early Bird' : 'Add Early Bird'}</h3>
             <EarlyBirdForm editing={editing} services={services} onSave={handleSave} onClose={() => { setFormOpen(false); setEditing(null); }} />
           </div>
@@ -485,9 +489,10 @@ function LastMinuteSection() {
     setLoading(true);
     try {
       const res = await fetchWithAuth('/api/admin/last-minute');
-      const d = await res.json();
-      if (res.ok) setDeals(d.last_minute_deals || []);
-    } catch { /* silent */ }
+      const sf = await safeFetchJson(res, 'LastMinute');
+      if (sf.ok) setDeals(sf.data?.last_minute_deals || []);
+      else console.warn(sf.error);
+    } catch (err) { console.warn('LastMinute | Error:', err.message); }
     setLoading(false);
   }
 
@@ -510,7 +515,7 @@ function LastMinuteSection() {
         body: JSON.stringify({ is_active: !d.is_active }),
       });
       fetchDeals();
-    } catch { /* silent */ }
+    } catch (err) { console.warn('LastMinute toggle | Error:', err.message); }
   }
 
   if (loading) return <Spinner />;
@@ -553,7 +558,7 @@ function LastMinuteSection() {
       {formOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => { setFormOpen(false); setEditing(null); }} />
-          <div className="relative bg-white rounded-2xl shadow-xl border border-border w-full max-w-sm animate-scale-in p-6">
+          <div className="relative bg-surface rounded-2xl shadow-xl border border-border w-full max-w-sm animate-scale-in p-6">
             <h3 className="text-lg font-serif font-bold text-text mb-4">{editing ? 'Edit Deal' : 'Add Last-Minute Deal'}</h3>
             <LastMinuteForm editing={editing} services={services} onSave={handleSave} onClose={() => { setFormOpen(false); setEditing(null); }} />
           </div>
@@ -631,15 +636,17 @@ function CreditsSection() {
   useEffect(() => {
     async function load() {
       try {
-        const [creditsRes] = await Promise.all([
-          fetchWithAuth('/api/credits').then(r => r.json()),
-          fetchWithAuth('/api/credits/transactions').then(r => r.json()),
+        const [creditsRes, transRes] = await Promise.all([
+          fetchWithAuth('/api/credits').then(r => safeFetchJson(r, 'Credits')),
+          fetchWithAuth('/api/credits/transactions').then(r => safeFetchJson(r, 'CreditsTransactions')),
         ]);
-        setData({
-          all_time: creditsRes.credits?.lifetime_credits || 0,
-          monthly: creditsRes.credits?.balance_cents || 0,
-          balance: creditsRes.credits?.balance_cents || 0,
-        });
+        if (creditsRes.ok) {
+          setData({
+            all_time: creditsRes.data?.credits?.lifetime_credits || 0,
+            monthly: creditsRes.data?.credits?.balance_cents || 0,
+            balance: creditsRes.data?.credits?.balance_cents || 0,
+          });
+        } else { console.warn(creditsRes.error); }
       } catch { /* silent */ }
       setLoading(false);
     }
@@ -687,9 +694,10 @@ function DynamicPricingSection() {
     setLoading(true);
     try {
       const res = await fetchWithAuth('/api/admin/dynamic-pricing');
-      const d = await res.json();
-      if (res.ok) setRules(d.rules || []);
-    } catch { /* silent */ }
+      const sf = await safeFetchJson(res, 'DynamicPricing');
+      if (sf.ok) setRules(sf.data?.rules || []);
+      else console.warn(sf.error);
+    } catch (err) { console.warn('DynamicPricing | Error:', err.message); }
     setLoading(false);
   }
 
@@ -700,7 +708,7 @@ function DynamicPricingSection() {
         body: JSON.stringify({ is_active: !r.is_active }),
       });
       fetchRules();
-    } catch { /* silent */ }
+    } catch (err) { console.warn('DynamicPricing toggle | Error:', err.message); }
   }
 
   const ruleTypeLabels = { 'time_of_day': 'Time of Day', 'day_of_week': 'Day of Week', 'date_range': 'Date Range', 'booking_window': 'Booking Window', 'seasonal': 'Seasonal', 'occupancy': 'Occupancy' };
@@ -720,7 +728,7 @@ function DynamicPricingSection() {
                   <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">{ruleTypeLabels[r.rule_type] || r.rule_type}</span>
                   <span className="font-medium text-text text-sm">{r.adjustment_type === 'percentage' ? `${r.adjustment_value}%` : `$${r.adjustment_value}`}</span>
                   {r.service_id && <span className="text-xs text-text-muted">· Service #{r.service_id}</span>}
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full border ${r.is_active ? 'bg-success-bg text-success border-green-200' : 'bg-gray-50 text-gray-500'}`}>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full border ${r.is_active ? 'bg-success-bg text-success border-green-200' : 'badge-inactive'}`}>
                     {r.is_active ? 'Active' : 'Inactive'}
                   </span>
                 </div>
@@ -752,19 +760,19 @@ export default function FinanceTab() {
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-white rounded-xl border border-border p-4 shadow-sm" style={{ borderLeftColor: primaryColor, borderLeftWidth: '3px' }}>
+        <div className="bg-surface rounded-xl border border-border p-4 shadow-sm" style={{ borderLeftColor: primaryColor, borderLeftWidth: '3px' }}>
           <p className="text-2xl font-bold text-text">Tax</p>
           <p className="text-xs text-text-muted">Configure rates & types</p>
         </div>
-        <div className="bg-white rounded-xl border border-border p-4 shadow-sm" style={{ borderLeftColor: '#d97706', borderLeftWidth: '3px' }}>
+        <div className="bg-surface rounded-xl border border-border p-4 shadow-sm" style={{ borderLeftColor: '#d97706', borderLeftWidth: '3px' }}>
           <p className="text-2xl font-bold text-text">Tips</p>
           <p className="text-xs text-text-muted">Default percentages</p>
         </div>
-        <div className="bg-white rounded-xl border border-border p-4 shadow-sm" style={{ borderLeftColor: '#16a34a', borderLeftWidth: '3px' }}>
+        <div className="bg-surface rounded-xl border border-border p-4 shadow-sm" style={{ borderLeftColor: '#16a34a', borderLeftWidth: '3px' }}>
           <p className="text-2xl font-bold text-text">Discounts</p>
           <p className="text-xs text-text-muted">Early bird & last-minute</p>
         </div>
-        <div className="bg-white rounded-xl border border-border p-4 shadow-sm" style={{ borderLeftColor: '#6366f1', borderLeftWidth: '3px' }}>
+        <div className="bg-surface rounded-xl border border-border p-4 shadow-sm" style={{ borderLeftColor: '#6366f1', borderLeftWidth: '3px' }}>
           <p className="text-2xl font-bold text-text">Pricing</p>
           <p className="text-xs text-text-muted">Dynamic rules engine</p>
         </div>

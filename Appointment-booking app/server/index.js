@@ -111,6 +111,11 @@ app.use('/api/payments', paymentsRoutes);
 // Coupons / discount codes
 app.use('/api/coupons', couponsRoutes);
 
+// Admin coupon management — mounted separately so they're reachable at /api/admin/coupons
+if (couponsRoutes.adminRouter) {
+  app.use('/api/admin/coupons', couponsRoutes.adminRouter);
+}
+
 // Staff management
 app.use('/api/staff', staffRoutes);
 
@@ -191,14 +196,37 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// ─── API 404 catch-all: return JSON instead of Express HTML 404 ───
+app.use('/api', (req, res) => {
+  logger.warn({ method: req.method, url: req.originalUrl }, 'API route not found');
+  res.status(404).json({
+    error: `Route ${req.method} ${req.originalUrl} not found`,
+    code: 'NOT_FOUND',
+  });
+});
+
+// ─── Static files ──────────────────────────
+app.get('/', (req, res) => {
+  // Only here to prevent Express HTML 404 on root—actual frontend served by Vite dev server or separate build
+  res.json({ name: 'CRAMS ServiceHub API', version: '1.0.0', status: 'running' });
+});
+
 // Initialize database, run migrations, and seed if empty
 async function initializeDb() {
   await initDatabase();
   // Skip migrations in test mode — the in-memory mock seeds data directly
-  if (process.env.VITEST) {
+  if (process.env.VITEST || process.env.MOCK_DB) {
     return;
   }
   await runMigrations();
+
+  // Verify tenant-scoped tables exist
+  try {
+    const couponCheck = await queryOne('SELECT COUNT(*)::int as count FROM coupons');
+    logger.info({ couponCount: couponCheck?.count || 0 }, 'Coupons table verified — accessible for all tenants');
+  } catch (err) {
+    logger.error({ err }, 'Coupons table check failed — table may be missing');
+  }
 
   // Check if services exist, seed if empty
   const row = await queryOne('SELECT COUNT(*)::int as count FROM services');

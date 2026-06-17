@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { safeFetchJson, safeFetchShape } from '../hooks/useSafeFetch';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { useBusiness } from '../context/BusinessContext';
@@ -19,7 +20,7 @@ function Spinner() {
 
 function SectionCard({ title, description, children, action }) {
   return (
-    <div className="bg-white rounded-xl border border-border overflow-hidden">
+    <div className="bg-surface rounded-xl border border-border overflow-hidden">
       <div className="px-6 py-4 border-b border-border bg-surface-warm/50 flex items-center justify-between">
         <div>
           <h3 className="text-base font-serif font-bold text-text">{title}</h3>
@@ -59,9 +60,10 @@ function ApiKeysSection() {
     setLoading(true);
     try {
       const res = await fetchWithAuth('/api/admin/api-keys');
-      const d = await res.json();
-      if (res.ok) setKeys(d.api_keys || []);
-    } catch { /* silent */ }
+      const sf = await safeFetchJson(res, 'ApiKeys');
+      if (sf.ok) setKeys(sf.data?.api_keys || []);
+      else console.warn(sf.error);
+    } catch (err) { console.warn('ApiKeys | Error:', err.message); }
     setLoading(false);
   }
 
@@ -108,7 +110,7 @@ function ApiKeysSection() {
             <div className="flex-1 min-w-0">
               <p className="font-semibold text-amber-800 mb-1">API Key Created — Copy it now!</p>
               <p className="text-amber-700 text-xs mb-2">This is the only time you'll see the full key.</p>
-              <div className="bg-white border border-amber-200 rounded-lg p-3 font-mono text-xs text-text break-all select-all">
+              <div className="bg-surface border border-amber-200 rounded-lg p-3 font-mono text-xs text-text break-all select-all">
                 {revealedKey}
               </div>
               <button onClick={() => { navigator.clipboard.writeText(revealedKey); toast.success('Copied!'); }}
@@ -142,7 +144,7 @@ function ApiKeysSection() {
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-text text-sm">{k.name}</span>
                   <code className="text-xs bg-surface-warm px-1.5 py-0.5 rounded border border-border text-text-muted font-mono">{k.key_prefix}...</code>
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full border ${k.is_active ? 'bg-success-bg text-success border-green-200' : 'bg-gray-50 text-gray-500 border-gray-200'}`}>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full border ${k.is_active ? 'bg-success-bg text-success border-green-200' : 'badge-inactive'}`}>
                     {k.is_active ? 'Active' : 'Revoked'}
                   </span>
                 </div>
@@ -201,7 +203,7 @@ function ApiKeyFormModal({ onClose, onCreate }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-xl border border-border w-full max-w-sm animate-scale-in p-6">
+      <div className="relative bg-surface rounded-2xl shadow-xl border border-border w-full max-w-sm animate-scale-in p-6">
         <h3 className="text-lg font-serif font-bold text-text mb-4">Create API Key</h3>
         <form onSubmit={handleSubmit} className="space-y-3">
           <div>
@@ -248,9 +250,10 @@ function AuditLogSection() {
       if (filter.action) params.set('action', filter.action);
       if (filter.user_id) params.set('user_id', filter.user_id);
       const res = await fetchWithAuth(`/api/admin/audit-log?${params}`);
-      const d = await res.json();
-      if (res.ok) setLogs(d.log || []);
-    } catch { /* silent */ }
+      const sf = await safeFetchJson(res, 'AuditLog');
+      if (sf.ok) setLogs(sf.data?.log || []);
+      else console.warn(sf.error);
+    } catch (err) { console.warn('AuditLog | Error:', err.message); }
     setLoading(false);
   }
 
@@ -265,7 +268,7 @@ function AuditLogSection() {
     'service.delete': 'bg-orange-50 text-orange-700 border-orange-200',
     'payment.create': 'bg-emerald-50 text-emerald-700 border-emerald-200',
     'payment.refund': 'bg-rose-50 text-rose-700 border-rose-200',
-    'admin.action': 'bg-gray-50 text-gray-700 border-gray-200',
+    'admin.action': 'bg-surface-alt text-text-secondary border-border',
   };
 
   if (loading) return <Spinner />;
@@ -313,7 +316,7 @@ function AuditLogSection() {
         <div className="space-y-1 max-h-96 overflow-y-auto">
           {logs.map(l => (
             <div key={l.id} className="flex items-start gap-3 p-2.5 rounded-lg hover:bg-surface-alt/50 transition-colors">
-              <span className={`text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-full border shrink-0 mt-0.5 ${actionColors[l.action] || 'bg-gray-50 text-gray-500 border-gray-200'}`}>
+              <span className={`text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-full border shrink-0 mt-0.5 ${actionColors[l.action] || 'badge-inactive'}`}>
                 {l.action?.replace('.', ' ')}
               </span>
               <div className="flex-1 min-w-0">
@@ -353,9 +356,10 @@ function SessionsSection() {
     setLoading(true);
     try {
       const res = await fetchWithAuth('/api/admin/sessions');
-      const d = await res.json();
-      if (res.ok) setSessions(d.sessions || []);
-    } catch { /* silent */ }
+      const sf = await safeFetchJson(res, 'Sessions');
+      if (sf.ok) setSessions(sf.data?.sessions || []);
+      else console.warn(sf.error);
+    } catch (err) { console.warn('Sessions | Error:', err.message); }
     setLoading(false);
   }
 
@@ -451,7 +455,7 @@ function TwoFactorSection() {
           </div>
           <div className="bg-surface-warm rounded-xl border border-border p-4">
             <p className="text-xs font-medium text-text mb-1">Secret Key</p>
-            <code className="block text-sm font-mono bg-white border border-border rounded-lg p-3 break-all select-all">{secret.secret}</code>
+            <code className="block text-sm font-mono bg-surface border border-border rounded-lg p-3 break-all select-all">{secret.secret}</code>
           </div>
           <p className="text-xs text-text-muted">
             QR URI: <code className="text-primary">{secret.qr_uri?.slice(0, 60)}...</code>
@@ -488,19 +492,19 @@ export default function DeveloperTab() {
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-white rounded-xl border border-border p-4 shadow-sm" style={{ borderLeftColor: primaryColor, borderLeftWidth: '3px' }}>
+        <div className="bg-surface rounded-xl border border-border p-4 shadow-sm" style={{ borderLeftColor: primaryColor, borderLeftWidth: '3px' }}>
           <p className="text-2xl font-bold text-text">API</p>
           <p className="text-xs text-text-muted">Manage access keys</p>
         </div>
-        <div className="bg-white rounded-xl border border-border p-4 shadow-sm" style={{ borderLeftColor: '#8b5cf6', borderLeftWidth: '3px' }}>
+        <div className="bg-surface rounded-xl border border-border p-4 shadow-sm" style={{ borderLeftColor: '#8b5cf6', borderLeftWidth: '3px' }}>
           <p className="text-2xl font-bold text-text">Audit</p>
           <p className="text-xs text-text-muted">Event log viewer</p>
         </div>
-        <div className="bg-white rounded-xl border border-border p-4 shadow-sm" style={{ borderLeftColor: '#06b6d4', borderLeftWidth: '3px' }}>
+        <div className="bg-surface rounded-xl border border-border p-4 shadow-sm" style={{ borderLeftColor: '#06b6d4', borderLeftWidth: '3px' }}>
           <p className="text-2xl font-bold text-text">Sessions</p>
           <p className="text-xs text-text-muted">Active user sessions</p>
         </div>
-        <div className="bg-white rounded-xl border border-border p-4 shadow-sm" style={{ borderLeftColor: '#10b981', borderLeftWidth: '3px' }}>
+        <div className="bg-surface rounded-xl border border-border p-4 shadow-sm" style={{ borderLeftColor: '#10b981', borderLeftWidth: '3px' }}>
           <p className="text-2xl font-bold text-text">2FA</p>
           <p className="text-xs text-text-muted">Security settings</p>
         </div>

@@ -76,10 +76,10 @@ const typeIcons = {
 };
 
 const typeStyles = {
-  success: 'bg-white/95 text-success border-green-200 shadow-green-500/10',
-  error: 'bg-white/95 text-error border-red-200 shadow-red-500/10',
-  info: 'bg-white/95 text-primary border-primary/20 shadow-primary-500/10',
-  warning: 'bg-white/95 text-warning border-amber-200 shadow-amber-500/10',
+  success: 'bg-surface/95 text-success border-green-200 shadow-green-500/10',
+  error: 'bg-surface/95 text-error border-red-200 shadow-red-500/10',
+  info: 'bg-surface/95 text-primary border-primary/20 shadow-primary-500/10',
+  warning: 'bg-surface/95 text-warning border-amber-200 shadow-amber-500/10',
 };
 
 export function useToast() {

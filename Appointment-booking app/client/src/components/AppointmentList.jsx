@@ -255,7 +255,7 @@ export default function AppointmentList() {
               <p className="font-semibold text-text mb-0.5">Calendar Feed Ready</p>
               <p className="text-text-secondary text-xs mb-2.5">Add this URL to Google Calendar, Apple Calendar, or Outlook:</p>
               <div className="flex items-center gap-2">
-                <code className="flex-1 block bg-white border border-border rounded-lg px-3 py-2 text-xs font-mono text-text break-all select-all">
+                <code className="flex-1 block bg-surface border border-border rounded-lg px-3 py-2 text-xs font-mono text-text break-all select-all">
                   {icalFeedUrl}
                 </code>
                 <button onClick={() => { navigator.clipboard.writeText(icalFeedUrl); toast.success('Copied!'); }}
