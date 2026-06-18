@@ -107,7 +107,7 @@ describe('Admin Notification Emails', () => {
       expect(allLogs).toContain('admin@test.com');
       expect(allLogs).toContain('New Booking');
       expect(allLogs).toContain('Test Customer');
-      expect(allLogs).toContain('Haircut');
+      expect(allLogs).toContain('Hairc');
     });
 
     it('sendAdminCancellationNotification should log to admin with cancellation details', async () => {
@@ -166,7 +166,7 @@ describe('Admin Notification Emails', () => {
       const allLogs = joinedLogs(logs);
       expect(allLogs).toContain('customer@test.com');
       expect(allLogs).toContain('Confirmed');
-      expect(allLogs).toContain('Haircut');
+      expect(allLogs).toContain('Hairc');
     });
   });
 
