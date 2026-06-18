@@ -81,6 +81,35 @@ describe('Admin Notification Emails', () => {
   // ── Direct function tests ─────────────────────
 
   describe('Direct function calls', () => {
+    // DEBUG: captureLogs diagnostic — prints captured logs array before assertion
+    it.only('DEBUG captureLogs: show what sendAdminBookingNotification produces', async () => {
+      console.error('=== DEBUG: RESEND_API_KEY =', process.env.RESEND_API_KEY, '===');
+      console.error('=== DEBUG: VITEST =', process.env.VITEST, '===');
+
+      const logs = await captureLogs(() =>
+        emailModule.sendAdminBookingNotification(
+          [{ email: 'admin@test.com', name: 'Admin User' }],
+          { id: 2, name: 'Test Customer', email: 'customer@test.com' },
+          {
+            id: 99, service_name: 'Haircut', date: '2026-07-15',
+            time: '10:00', service_duration: 30, service_price: 35.00,
+            notes: 'Test', created_at: '2026-06-01',
+          }
+        )
+      );
+
+      console.error('=== DEBUG: captured logs count =', logs.length, '===');
+      console.error('=== DEBUG: captured logs array ===');
+      logs.forEach((l, i) => console.error(`  [${i}]: ${l}`));
+      console.error('=== DEBUG: end of captured logs ===');
+
+      const adminLog = logs.find(l => l.includes('admin@test.com') && l.includes('New Booking'));
+      console.error('=== DEBUG: adminLog =', adminLog, '===');
+      expect(adminLog).toBeTruthy();
+      expect(adminLog).toContain('Test Customer');
+      expect(adminLog).toContain('Haircut');
+    });
+
     it('sendAdminBookingNotification should log to admin with booking details', async () => {
       const logs = await captureLogs(() =>
         emailModule.sendAdminBookingNotification(
