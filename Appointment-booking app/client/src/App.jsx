@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { lazy, Suspense, useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
@@ -7,15 +7,17 @@ import { ToastProvider } from './context/ToastContext';
 import { useBusiness } from './context/BusinessContext';
 import Sidebar from './components/Sidebar';
 import Navbar from './components/Navbar';
-import ServiceList from './components/ServiceList';
-import AuthForm from './components/AuthForm';
-import BookingForm from './components/BookingForm';
-import AppointmentList from './components/AppointmentList';
-import AdminDashboard from './components/AdminDashboard';
-import NotificationPreferences from './components/NotificationPreferences';
-import ProfilePage from './components/ProfilePage';
-import CheckoutForm from './components/CheckoutForm';
-import WaitingListManager from './components/WaitingListManager';
+
+// Lazy-loaded route-level components for smaller initial bundle
+const ServiceList = lazy(() => import('./components/ServiceList'));
+const AuthForm = lazy(() => import('./components/AuthForm'));
+const BookingForm = lazy(() => import('./components/BookingForm'));
+const AppointmentList = lazy(() => import('./components/AppointmentList'));
+const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
+const NotificationPreferences = lazy(() => import('./components/NotificationPreferences'));
+const ProfilePage = lazy(() => import('./components/ProfilePage'));
+const CheckoutForm = lazy(() => import('./components/CheckoutForm'));
+const WaitingListManager = lazy(() => import('./components/WaitingListManager'));
 
 // ─── Footer ─────────────────────────────────
 
@@ -31,12 +33,25 @@ function Footer() {
 
 // ─── Public Layout (no sidebar) ──────────────
 
+function LoadingFallback() {
+  return (
+    <div className="flex items-center justify-center min-h-[60vh] animate-fade-in">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        <p className="text-sm text-text-muted">Loading…</p>
+      </div>
+    </div>
+  );
+}
+
 function PublicLayout() {
   return (
     <div className="min-h-screen bg-bg">
       <Navbar />
       <main className="animate-fade-in">
-        <Outlet />
+        <Suspense fallback={<LoadingFallback />}>
+          <Outlet />
+        </Suspense>
       </main>
       <Footer />
     </div>
@@ -79,7 +94,9 @@ function SidebarLayout() {
       <div className={`main-content ${!sidebarOpen ? 'main-content-full' : ''}`}>
         <Navbar onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
         <main className="main-area animate-fade-in">
-          <Outlet />
+          <Suspense fallback={<LoadingFallback />}>
+            <Outlet />
+          </Suspense>
         </main>
         <Footer />
       </div>
