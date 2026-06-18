@@ -34,6 +34,7 @@ test.describe('Admin Dashboard', () => {
     const registerRes = await fetch(`${testConfig.apiUrl}/api/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(10_000),
       body: JSON.stringify({
         name: adminUser.name,
         email: adminUser.email,

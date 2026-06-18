@@ -56,6 +56,7 @@ export default defineConfig({
         DATABASE_URL: process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/appointmentbook',
         JWT_SECRET: 'e2e-test-jwt-secret',
         RESEND_API_KEY: '',
+        DISABLE_SCHEDULER: 'true',
         DISABLE_RATE_LIMIT: 'true',
         LOG_LEVEL: 'silent',
       },
