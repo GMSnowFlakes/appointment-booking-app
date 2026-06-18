@@ -126,7 +126,7 @@ jobs:
           LOG_LEVEL: silent
       - name: Upload test artifacts on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-test-results-${{ matrix.node-version }}
           path: Appointment-booking app/client/test-results/
