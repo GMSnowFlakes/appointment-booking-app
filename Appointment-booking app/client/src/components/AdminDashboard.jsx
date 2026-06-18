@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -327,7 +327,7 @@ function BusinessOverview() {
 
   const primaryColor = settings?.primary_color || '#e11d48';
 
-  function loadDashboard() {
+  const loadDashboard = useCallback(() => {
     setLoading(true);
     setLoadError(false);
     Promise.all([
@@ -355,12 +355,10 @@ function BusinessOverview() {
       setTodayApts(today.appointments || []);
       setLoading(false);
     }).catch(() => { setLoadError(true); setLoading(false); });
-  }
+  }, [fetchWithAuth]);
 
   /* eslint-disable react-hooks/set-state-in-effect */
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => { loadDashboard(); }, []);
-  /* eslint-enable react-hooks/set-state-in-effect */
+  useEffect(() => { loadDashboard(); }, [loadDashboard]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   if (loading) return <Spinner />;
@@ -911,9 +909,7 @@ function ServicesTab() {
 
   const exportServices = downloadCsv(fetchWithAuth, '/api/export/services', `services_${new Date().toISOString().slice(0, 10)}.csv`);
 
-  useEffect(() => { fetchServices(); }, []);
-
-  async function fetchServices() {
+  const fetchServices = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetchWithAuth('/api/admin/services');
@@ -922,7 +918,11 @@ function ServicesTab() {
       else setError(data.error || 'Failed to load services');
     } catch (err) { setError(err.message); }
     finally { setLoading(false); }
-  }
+  }, [fetchWithAuth]);
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => { fetchServices(); }, [fetchServices]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   function openEdit(svc) { setEditingService(svc); setFormOpen(true); }
   function openCreate() { setEditingService(null); setFormOpen(true); }
@@ -1069,12 +1069,7 @@ function AppointmentsTab() {
 
   const exportAppointments = downloadCsv(fetchWithAuth, '/api/export/appointments', `appointments_${new Date().toISOString().slice(0, 10)}.csv`);
 
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => { setPage(1); fetchAppointments(1); }, [statusFilter]);
-  useEffect(() => { if (page > 1) fetchAppointments(page); }, [page]);
-  /* eslint-enable react-hooks/set-state-in-effect */
-
-  async function fetchAppointments(pageOverride) {
+  const fetchAppointments = useCallback(async (pageOverride) => {
     const cp = pageOverride ?? page;
     setLoading(true);
     setError('');
@@ -1089,7 +1084,12 @@ function AppointmentsTab() {
       else setError(data.error || 'Failed to load appointments');
     } catch (err) { setError(err.message); }
     finally { setLoading(false); }
-  }
+  }, [fetchWithAuth, page, statusFilter]);
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => { setPage(1); fetchAppointments(1); }, [statusFilter, fetchAppointments]);
+  useEffect(() => { if (page > 1) fetchAppointments(page); }, [page, fetchAppointments]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   async function updateStatus(id, status) {
     try {
@@ -1228,9 +1228,7 @@ function UsersTab() {
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, user: null });
   const [importOpen, setImportOpen] = useState(false);
 
-  useEffect(() => { fetchUsers(); }, []);
-
-  async function fetchUsers() {
+  const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetchWithAuth('/api/admin/users?role=customer');
@@ -1239,7 +1237,11 @@ function UsersTab() {
       else setError(data.error || 'Failed to load users');
     } catch (err) { setError(err.message); }
     finally { setLoading(false); }
-  }
+  }, [fetchWithAuth]);
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   async function handleDelete() {
     const target = deleteConfirm.user;
@@ -1395,9 +1397,7 @@ function StaffTab() {
     { id: 'specialist', label: 'Specialist' },
   ];
 
-  useEffect(() => { fetchStaff(); fetchServices(); }, []);
-
-  async function fetchStaff() {
+  const fetchStaff = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetchWithAuth('/api/staff/admin');
@@ -1406,15 +1406,19 @@ function StaffTab() {
       else setError(d.error || 'Failed to load staff');
     } catch (err) { setError(err.message); }
     finally { setLoading(false); }
-  }
+  }, [fetchWithAuth]);
 
-  async function fetchServices() {
+  const fetchServices = useCallback(async () => {
     try {
       const res = await fetchWithAuth('/api/admin/services');
       const d = await res.json();
       if (res.ok) setServices(d.services || []);
     } catch { /* silent */ }
-  }
+  }, [fetchWithAuth]);
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => { fetchStaff(); fetchServices(); }, [fetchStaff, fetchServices]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   async function handleCreateStaff(e) {
     e.preventDefault();
@@ -1814,7 +1818,7 @@ function CouponsTab() {
     }
     if (user?.role === 'admin') load();
     else setLoading(false);
-  }, [user]);
+  }, [user, fetchWithAuth]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   async function handleToggleActive(coupon) {
@@ -1908,7 +1912,9 @@ function TemplatesTab() {
   const [editModal, setEditModal] = useState({ open: false, id: '', label: '', roles: '', services: '', isNew: false });
   const [loadingTemplate, setLoadingTemplate] = useState(false);
 
+  /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => { fetchTemplates(); }, []);
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   function fetchTemplates() {
     setLoading(true);
