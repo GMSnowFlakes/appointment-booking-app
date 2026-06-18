@@ -273,7 +273,7 @@ router.get('/commissions', async (req, res) => {
     const rows = await queryAll(`
       SELECT
         sc.staff_id,
-        sm.name AS staff_name,
+        u.name AS staff_name,
         COUNT(*)::int AS total_appointments,
         COALESCE(SUM(sc.commission_cents)::numeric(10,2), 0) AS total_commission_cents,
         COALESCE(AVG(sc.commission_cents)::numeric(10,2), 0) AS avg_commission_cents,
@@ -283,8 +283,9 @@ router.get('/commissions', async (req, res) => {
         COALESCE(SUM(sc.commission_cents) FILTER (WHERE sc.status = 'pending')::numeric(10,2), 0) AS pending_cents
       FROM staff_commissions sc
       JOIN staff_members sm ON sc.staff_id = sm.id
+      JOIN users u ON sm.user_id = u.id
       WHERE 1=1 ${periodSql}
-      GROUP BY sc.staff_id, sm.name
+      GROUP BY sc.staff_id, u.name
       ORDER BY total_commission_cents DESC
     `, df.params);
 
