@@ -8,15 +8,8 @@ module.exports = defineConfig({
     setupFiles: ['./vitest.setup.mjs'],
     testTimeout: 10000,
     hookTimeout: 10000,
-    sequence: {
-      concurrent: false,
-    },
+    fileParallelism: false,
     pool: 'forks',
-    poolOptions: {
-      forks: {
-        singleFork: true,
-      },
-    },
   },
   coverage: {
     provider: 'v8',

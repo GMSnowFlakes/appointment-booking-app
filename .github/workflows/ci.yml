@@ -37,7 +37,7 @@ jobs:
       fail-fast: false
       max-parallel: 2
       matrix:
-        node-version: [18, 20, 22]
+        node-version: [20, 22]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -60,7 +60,7 @@ jobs:
       fail-fast: false
       max-parallel: 2
       matrix:
-        node-version: [18, 20, 22]
+        node-version: [20, 22]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -86,7 +86,7 @@ jobs:
       fail-fast: false
       max-parallel: 2
       matrix:
-        node-version: [18, 20, 22]
+        node-version: [20, 22]
     services:
       postgres:
         image: postgres:16-alpine
