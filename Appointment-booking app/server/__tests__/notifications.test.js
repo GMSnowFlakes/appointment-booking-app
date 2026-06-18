@@ -82,7 +82,7 @@ describe('Admin Notification Emails', () => {
 
   describe('Direct function calls', () => {
     // DEBUG: captureLogs diagnostic — prints captured logs array before assertion
-    it.only('DEBUG captureLogs: show what sendAdminBookingNotification produces', async () => {
+    it('DEBUG captureLogs: show what sendAdminBookingNotification produces', async () => {
       console.error('=== DEBUG: RESEND_API_KEY =', process.env.RESEND_API_KEY, '===');
       console.error('=== DEBUG: VITEST =', process.env.VITEST, '===');
 
