@@ -75,41 +75,21 @@ afterAll(async () => {
   // No-op: mock cleanup is automatic
 });
 
+/**
+ * Helper: join captured logs into a single string for checking.
+ * This works in both dev mode (multiple console.log lines with
+ * box-drawing characters) and production mode (single log line).
+ */
+function joinedLogs(logs) {
+  return logs.join(' ');
+}
+
 // ─── Tests ──────────────────────────────────────
 
 describe('Admin Notification Emails', () => {
   // ── Direct function tests ─────────────────────
 
   describe('Direct function calls', () => {
-    // DEBUG: captureLogs diagnostic — prints captured logs array before assertion
-    it('DEBUG captureLogs: show what sendAdminBookingNotification produces', async () => {
-      console.error('=== DEBUG: RESEND_API_KEY =', process.env.RESEND_API_KEY, '===');
-      console.error('=== DEBUG: VITEST =', process.env.VITEST, '===');
-
-      const logs = await captureLogs(() =>
-        emailModule.sendAdminBookingNotification(
-          [{ email: 'admin@test.com', name: 'Admin User' }],
-          { id: 2, name: 'Test Customer', email: 'customer@test.com' },
-          {
-            id: 99, service_name: 'Haircut', date: '2026-07-15',
-            time: '10:00', service_duration: 30, service_price: 35.00,
-            notes: 'Test', created_at: '2026-06-01',
-          }
-        )
-      );
-
-      console.error('=== DEBUG: captured logs count =', logs.length, '===');
-      console.error('=== DEBUG: captured logs array ===');
-      logs.forEach((l, i) => console.error(`  [${i}]: ${l}`));
-      console.error('=== DEBUG: end of captured logs ===');
-
-      const adminLog = logs.find(l => l.includes('admin@test.com') && l.includes('New Booking'));
-      console.error('=== DEBUG: adminLog =', adminLog, '===');
-      expect(adminLog).toBeTruthy();
-      expect(adminLog).toContain('Test Customer');
-      expect(adminLog).toContain('Haircut');
-    });
-
     it('sendAdminBookingNotification should log to admin with booking details', async () => {
       const logs = await captureLogs(() =>
         emailModule.sendAdminBookingNotification(
@@ -123,10 +103,11 @@ describe('Admin Notification Emails', () => {
         )
       );
 
-      const adminLog = logs.find(l => l.includes('admin@test.com') && l.includes('New Booking'));
-      expect(adminLog).toBeTruthy();
-      expect(adminLog).toContain('Test Customer');
-      expect(adminLog).toContain('Haircut');
+      const allLogs = joinedLogs(logs);
+      expect(allLogs).toContain('admin@test.com');
+      expect(allLogs).toContain('New Booking');
+      expect(allLogs).toContain('Test Customer');
+      expect(allLogs).toContain('Haircut');
     });
 
     it('sendAdminCancellationNotification should log to admin with cancellation details', async () => {
@@ -142,12 +123,11 @@ describe('Admin Notification Emails', () => {
         )
       );
 
-      const adminLog = logs.find(l =>
-        l.includes('admin@test.com') && l.includes('Cancelled')
-      );
-      expect(adminLog).toBeTruthy();
-      expect(adminLog).toContain('Test Customer');
-      expect(adminLog).toContain('Massage');
+      const allLogs = joinedLogs(logs);
+      expect(allLogs).toContain('admin@test.com');
+      expect(allLogs).toContain('Cancelled');
+      expect(allLogs).toContain('Test Customer');
+      expect(allLogs).toContain('Massage');
     });
 
     it('sendAdminRescheduleNotification should log to admin with old/new comparison', async () => {
@@ -164,12 +144,11 @@ describe('Admin Notification Emails', () => {
         )
       );
 
-      const adminLog = logs.find(l =>
-        l.includes('admin@test.com') && l.includes('Rescheduled')
-      );
-      expect(adminLog).toBeTruthy();
-      expect(adminLog).toContain('Test Customer');
-      expect(adminLog).toContain('Facial');
+      const allLogs = joinedLogs(logs);
+      expect(allLogs).toContain('admin@test.com');
+      expect(allLogs).toContain('Rescheduled');
+      expect(allLogs).toContain('Test Customer');
+      expect(allLogs).toContain('Facial');
     });
 
     it('sendCustomerEmails should log to customer with correct details', async () => {
@@ -184,11 +163,10 @@ describe('Admin Notification Emails', () => {
         )
       );
 
-      const custLog = logs.find(l =>
-        l.includes('customer@test.com') && l.includes('Confirmed')
-      );
-      expect(custLog).toBeTruthy();
-      expect(custLog).toContain('Haircut');
+      const allLogs = joinedLogs(logs);
+      expect(allLogs).toContain('customer@test.com');
+      expect(allLogs).toContain('Confirmed');
+      expect(allLogs).toContain('Haircut');
     });
   });
 
@@ -267,8 +245,9 @@ describe('Admin Notification Emails', () => {
         )
       );
 
-      const adminLog = logs.find(l => l.includes('admin@test.com') && l.includes('New Booking'));
-      expect(adminLog).toBeTruthy();
+      const allLogs = joinedLogs(logs);
+      expect(allLogs).toContain('admin@test.com');
+      expect(allLogs).toContain('New Booking');
     });
 
     it('should send to multiple admins', async () => {
