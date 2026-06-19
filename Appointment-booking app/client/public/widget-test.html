@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Widget Embed Test</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+      color: #333;
+      padding: 40px;
+    }
+    .container { max-width: 800px; margin: 0 auto; }
+    .site-header {
+      background: #1a1a2e;
+      color: #fff;
+      padding: 20px 30px;
+      border-radius: 12px;
+      margin-bottom: 30px;
+    }
+    .site-header h1 { font-size: 24px; }
+    .site-header p { font-size: 14px; color: #aaa; margin-top: 4px; }
+    .content {
+      background: #fff;
+      border-radius: 12px;
+      padding: 30px;
+      line-height: 1.6;
+      margin-bottom: 30px;
+    }
+    .content h2 { margin-bottom: 12px; font-size: 18px; }
+    .content p { color: #555; margin-bottom: 10px; }
+    .widget-section {
+      background: #fff;
+      border-radius: 12px;
+      padding: 30px;
+      border: 2px dashed #ddd;
+      text-align: center;
+    }
+    .widget-section h3 { margin-bottom: 8px; font-size: 16px; color: #888; }
+    .widget-section p { color: #aaa; font-size: 13px; margin-bottom: 16px; }
+    .info {
+      background: #e8f4fd;
+      border: 1px solid #b3d8f7;
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 13px;
+      color: #1a4972;
+      margin-bottom: 20px;
+    }
+    .info strong { font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="site-header">
+      <h1>ACME Business Solutions</h1>
+      <p>Your trusted partner since 2010 — this is a simulated 3rd party website embedding the booking widget</p>
+    </div>
+
+    <div class="content">
+      <h2>About Our Services</h2>
+      <p>We provide top-quality services to our valued customers. Our team of experienced professionals is dedicated to delivering exceptional results every time.</p>
+      <p>Ready to book an appointment? Use the booking widget below to schedule your visit. It's quick and easy!</p>
+    </div>
+
+    <div class="info">
+      📌 <strong>Widget Test</strong> — The button below loads the embed script from the booking server. Clicking it opens an iframe with the full booking flow. This simulates embedding the widget on any external website.
+    </div>
+
+    <div class="widget-section">
+      <h3>📅 Book an Appointment</h3>
+      <p>Select a service and pick a time that works for you</p>
+      <div id="widget-container">
+        <!-- The embed script will insert the booking button here -->
+      </div>
+      <script src="http://localhost:3001/api/widget/aacce8f2eeb289068b4eff6bb165eb1d822c6d701c712af6/embed.js"></script>
+    </div>
+
+    <div class="content" style="margin-top: 30px;">
+      <h2>Why Choose Us?</h2>
+      <p>✅ Easy online booking with instant confirmation</p>
+      <p>✅ Professional, licensed providers</p>
+      <p>✅ Flexible scheduling to fit your lifestyle</p>
+    </div>
+  </div>
+</body>
+</html>
