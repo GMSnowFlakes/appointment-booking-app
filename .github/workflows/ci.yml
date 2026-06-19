@@ -147,11 +147,13 @@ jobs:
           DISABLE_RATE_LIMIT: 'true'
           DISABLE_SCHEDULER: 'true'
           LOG_LEVEL: silent
-      - name: Upload test artifacts on failure
-        if: failure()
+      - name: Upload Playwright artifacts
+        if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-test-results-${{ matrix.node-version }}
-          path: Appointment-booking app/client/test-results/
+          name: playwright-artifacts-${{ matrix.node-version }}
+          path: |
+            Appointment-booking app/client/test-results/
+            Appointment-booking app/client/playwright-report/
           if-no-files-found: ignore
           retention-days: 7

@@ -31,12 +31,19 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   workers: 1,
+  outputDir: '../test-results',
+
+  // Reporter: list for console, HTML for playright trace viewer
+  reporter: process.env.CI
+    ? [['list'], ['html', { outputFolder: '../playwright-report', open: 'never' }]]
+    : [['list'], ['html', { outputFolder: '../playwright-report', open: 'on-failure' }]],
 
   // Shared settings for all projects
   use: {
     baseURL: `http://localhost:${CLIENT_PORT}`,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
+    video: 'on-first-retry',
     headless: true,
     viewport: { width: 1280, height: 800 },
   },

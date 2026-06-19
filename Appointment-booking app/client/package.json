@@ -11,7 +11,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test --config e2e/playwright.config.js",
-    "e2e:headed": "playwright test --config e2e/playwright.config.js --headed"
+    "e2e:headed": "playwright test --config e2e/playwright.config.js --headed",
+    "playwright:report": "playwright show-report playwright-report",
+    "playwright:trace": "playwright show-trace"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
