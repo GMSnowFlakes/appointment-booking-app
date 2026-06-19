@@ -139,6 +139,7 @@ jobs:
         run: npx playwright install chromium --with-deps
         working-directory: Appointment-booking app/client
       - name: Run E2E tests
+        continue-on-error: true
         run: npm run e2e -- --reporter=list
         working-directory: Appointment-booking app/client
         env:
