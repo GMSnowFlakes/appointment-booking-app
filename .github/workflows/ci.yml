@@ -38,6 +38,20 @@ jobs:
       max-parallel: 2
       matrix:
         node-version: [20, 22]
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: appointmentbook
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -81,10 +95,10 @@ jobs:
   e2e-tests:
     name: E2E tests (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     strategy:
       fail-fast: false
-      max-parallel: 2
+      max-parallel: 1
       matrix:
         node-version: [20, 22]
     services:
@@ -114,15 +128,23 @@ jobs:
       - name: Install client dependencies
         run: npm ci
         working-directory: Appointment-booking app/client
+      - name: Run database migrations
+        run: node migrate.js
+        working-directory: Appointment-booking app/server
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/appointmentbook
+          DISABLE_RATE_LIMIT: 'true'
+          LOG_LEVEL: silent
       - name: Install Playwright Chromium
-        run: npx playwright install chromium
+        run: npx playwright install chromium --with-deps
         working-directory: Appointment-booking app/client
       - name: Run E2E tests
-        run: npm run e2e
+        run: npm run e2e -- --reporter=list
         working-directory: Appointment-booking app/client
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/appointmentbook
           DISABLE_RATE_LIMIT: 'true'
+          DISABLE_SCHEDULER: 'true'
           LOG_LEVEL: silent
       - name: Upload test artifacts on failure
         if: failure()
