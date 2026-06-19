@@ -33,14 +33,15 @@ const ADMIN_TAB_TITLES = {
   staff: 'Staff',
   services: 'Services',
   appointments: 'Appointments',
-  settings: 'Settings',
+  settings: 'Business Settings',
   finance: 'Finance',
-  coupons: 'Coupons',
-  analytics: 'Analytics',
-  public: 'Public Pages',
-  widget: 'Widgets',
-  ical: 'Calendar Sync',
+  coupons: 'Promotions & Coupons',
+  analytics: 'Analytics & Reports',
+  public: 'Booking Pages',
+  widget: 'Widgets & Embeds',
+  ical: 'Calendar',
   templates: 'Templates',
+  developer: 'Integrations & API',
 };
 
 // ─── Top Header ─────────────────────────────

@@ -7,6 +7,7 @@ import { ToastProvider } from './context/ToastContext';
 import { useBusiness } from './context/BusinessContext';
 import Sidebar from './components/Sidebar';
 import Navbar from './components/Navbar';
+import MobileTabBar from './components/MobileTabBar';
 
 // Lazy-loaded route-level components for smaller initial bundle
 const ServiceList = lazy(() => import('./components/ServiceList'));
@@ -100,6 +101,7 @@ function SidebarLayout() {
         </main>
         <Footer />
       </div>
+      <MobileTabBar onOpenSidebar={() => setSidebarOpen(true)} />
     </div>
   );
 }

@@ -26,39 +26,41 @@ const Icons = {
   logout: (cls) => <svg className={cls} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M7 17.5H4A1.5 1.5 0 012.5 16V4A1.5 1.5 0 014 2.5h3"/><path d="M13.5 14.5L18 10l-4.5-4.5M18 10H7"/></svg>,
   ical: (cls) => <svg className={cls} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="1.5" y="2.5" width="17" height="15" rx="2"/><path d="M1.5 7.5h17M5.5 1v3.5M14.5 1v3.5"/></svg>,
   template: (cls) => <svg className={cls} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>,
+  calendarPlus: (cls) => <svg className={cls} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="1.5" y="3.5" width="17" height="15" rx="2"/><path d="M1.5 8.5h17M6 1.5V5.5M14 1.5V5.5M14 12.5l-3 3-1.5-1.5"/></svg>,
 };
 
 // ─── Navigation Groups ──────────────────────
 
 const NAV_GROUPS = [
   {
-    label: 'Operations',
+    label: 'General',
     items: [
-      { id: 'appointments', label: 'Appointments', icon: 'appointments', auth: true },
-      { id: 'book', label: 'Book', icon: 'services', auth: true },
       { id: 'services', label: 'Services', icon: 'services' },
-      { id: 'waiting-list', label: 'Waiting List', icon: 'clock', auth: true },
-    ],
-  },
-  {
-    label: 'Notifications',
-    items: [
-      { id: 'notifications', label: 'Notification Prefs', icon: 'bell', auth: true },
+      { id: 'book', label: 'Book Now', icon: 'calendarPlus', auth: true },
+      { id: 'appointments', label: 'Appointments', icon: 'appointments', auth: true },
     ],
   },
   {
     label: 'Account',
     items: [
       { id: 'profile', label: 'Profile', icon: 'users', auth: true },
+      { id: 'notifications', label: 'Notifications', icon: 'bell', auth: true },
+      { id: 'waiting-list', label: 'Waiting List', icon: 'clock', auth: true },
     ],
   },
 ];
 
 const ADMIN_NAV_GROUPS = [
   {
-    label: 'Management',
+    label: 'Overview',
     items: [
       { id: 'story', label: 'Dashboard', icon: 'dashboard' },
+      { id: 'ical', label: 'Calendar', icon: 'calendar' },
+    ],
+  },
+  {
+    label: 'Operations',
+    items: [
       { id: 'appointments', label: 'Appointments', icon: 'appointments' },
       { id: 'users', label: 'Customers', icon: 'users' },
       { id: 'services', label: 'Services', icon: 'services' },
@@ -66,24 +68,23 @@ const ADMIN_NAV_GROUPS = [
     ],
   },
   {
-    label: 'Business',
+    label: 'Growth',
     items: [
-      { id: 'settings', label: 'Settings', icon: 'settings' },
-      { id: 'finance', label: 'Finance', icon: 'finance' },
-      { id: 'coupons', label: 'Coupons', icon: 'coupon' },
-      { id: 'analytics', label: 'Analytics', icon: 'analytics' },
-      { id: 'templates', label: 'Templates', icon: 'template' },
+      { id: 'analytics', label: 'Analytics & Reports', icon: 'analytics' },
+      { id: 'coupons', label: 'Promotions & Coupons', icon: 'coupon' },
+      { id: 'public', label: 'Booking Pages', icon: 'globe' },
+      { id: 'widget', label: 'Widgets & Embeds', icon: 'widget' },
     ],
   },
   {
-    label: 'Channels',
+    label: 'Settings',
     items: [
-      { id: 'public', label: 'Public Pages', icon: 'globe' },
-      { id: 'widget', label: 'Widgets', icon: 'widget' },
-      { id: 'ical', label: 'Calendar Sync', icon: 'ical' },
+      { id: 'settings', label: 'Business Settings', icon: 'settings' },
+      { id: 'finance', label: 'Finance', icon: 'finance' },
+      { id: 'templates', label: 'Templates', icon: 'template' },
+      { id: 'developer', label: 'Integrations & API', icon: 'developer' },
     ],
   },
-
 ];
 
 // ─── Sidebar Component ──────────────────────

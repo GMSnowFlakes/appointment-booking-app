@@ -905,6 +905,102 @@ body {
 [data-theme="dark"] .story-card-rose .bg-surface { background: rgba(244, 63, 94, 0.2); }
 [data-theme="dark"] .story-card-emerald .bg-surface { background: rgba(16, 185, 129, 0.2); }
 
+/* ═══════════════════════════════════════════════
+   MOBILE BOTTOM TAB BAR
+   ═══════════════════════════════════════════════ */
+.mobile-tab-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  display: flex;
+  align-items: stretch;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  padding: 4px 0;
+  padding-bottom: max(4px, env(safe-area-inset-bottom, 4px));
+  box-shadow: 0 -4px 20px rgba(0,0,0,0.06);
+}
+
+.mobile-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 4px 2px 6px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  position: relative;
+  color: var(--color-text-muted);
+  transition: color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  min-height: 48px;
+}
+
+.mobile-tab:active {
+  transform: scale(0.95);
+}
+
+.mobile-tab-active {
+  color: var(--color-primary);
+}
+
+.mobile-tab-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  transition: transform 0.15s var(--ease-spring);
+}
+
+.mobile-tab-active .mobile-tab-icon {
+  transform: translateY(-1px);
+}
+
+.mobile-tab-label {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.mobile-tab-indicator {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 20px;
+  height: 2.5px;
+  border-radius: 0 0 3px 3px;
+  opacity: 0;
+  animation: fade-in 0.2s var(--ease-out) forwards;
+}
+
+/* Show tab bar only below 640px, hide on larger screens */
+@media (min-width: 640px) {
+  .mobile-tab-bar { display: none; }
+}
+
+/* Add bottom padding to main content on mobile to clear tab bar */
+@media (max-width: 640px) {
+  .main-area {
+    padding-bottom: 72px;
+  }
+  .main-content {
+    padding-bottom: 56px;
+  }
+}
+
 /* ── Reduced Motion ────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
