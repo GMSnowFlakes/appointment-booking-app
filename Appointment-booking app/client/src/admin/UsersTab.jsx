@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { Spinner, ErrorBlock, EmptyBlock, Icon } from './shared';
@@ -14,31 +14,33 @@ export default function UsersTab() {
   const [error, setError] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, user: null });
   const [importOpen, setImportOpen] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  const fetchUsers = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetchWithAuth('/api/admin/users?role=customer');
+  useEffect(() => {
+    let cancelled = false;
+    fetchWithAuth('/api/admin/users?role=customer').then(async res => {
       const data = await res.json();
-      if (res.ok) setUsers(data.users);
-      else setError(data.error || 'Failed to load users');
-    } catch (err) { setError(err.message); }
-    finally { setLoading(false); }
-  }, [fetchWithAuth]);
-
-  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+      if (!cancelled) {
+        if (res.ok) { setUsers(data.users); setLoading(false); }
+        else { setError(data.error || 'Failed to load users'); setLoading(false); }
+      }
+    }).catch(err => {
+      if (!cancelled) { setError(err.message); setLoading(false); }
+    });
+    return () => { cancelled = true; };
+  }, [fetchWithAuth, refreshKey]);
 
   async function handleDelete() {
     const target = deleteConfirm.user;
     if (!target) return;
     try {
       const res = await fetchWithAuth(`/api/admin/users/${target.id}`, { method: 'DELETE' });
-      if (res.ok) { toast.success('User deleted'); setDeleteConfirm({ open: false, user: null }); fetchUsers(); }
+      if (res.ok) { toast.success('User deleted'); setDeleteConfirm({ open: false, user: null }); setRefreshKey(k => k + 1); }
     } catch { /* silent */ }
   }
 
   if (loading) return <Spinner />;
-  if (error) return <ErrorBlock message={error} onRetry={fetchUsers} />;
+  if (error) return <ErrorBlock message={error} onRetry={() => setRefreshKey(k => k + 1)} />;
 
   const filtered = searchQuery
     ? users.filter(u => u.name?.toLowerCase().includes(searchQuery.toLowerCase()) || u.email?.toLowerCase().includes(searchQuery.toLowerCase()) || u.phone?.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -133,7 +135,7 @@ export default function UsersTab() {
         templateEndpoint="/api/import/customers/template"
         title="Import Customers"
         description="Upload a CSV with name, email, and optional password/role columns. Duplicate emails are skipped."
-        onImported={() => fetchUsers()}
+        onImported={() => setRefreshKey(k => k + 1)}
       />
     </div>
   );

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { BUSINESS_TYPES, Spinner, ErrorBlock, Icon } from './shared';
+import { BUSINESS_TYPES, Spinner, ErrorBlock } from './shared';
 
 export default function TemplatesTab() {
   const { fetchWithAuth } = useAuth();

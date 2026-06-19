@@ -37,10 +37,9 @@ export default function PublicBookingTab() {
   const [editing, setEditing] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, page: null });
 
-  // Use relative URL for shareable links — in production client & server are on the same domain.
-  // In development (port 5173 client vs 3001 server), replace with your server URL.
-  const isDev = window.location.port === '5173';
-  const baseUrl = isDev ? window.location.origin.replace(':5173', ':3001') : window.location.origin;
+  // Use window.location.origin for shareable links — Vite dev server proxies /api/* requests
+  // to the backend, and in production the client & API are on the same domain.
+  const baseUrl = window.location.origin;
 
   useEffect(() => { fetchPages(); }, []);
 

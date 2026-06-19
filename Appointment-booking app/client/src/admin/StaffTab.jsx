@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { Spinner, ErrorBlock, EmptyBlock, Icon, ScheduleModal } from './shared';
@@ -32,27 +32,27 @@ export default function StaffTab() {
   const [staffForm, setStaffForm] = useState({ firstName: '', lastName: '', email: '', phone: '', role: '', serviceIds: [] });
   const [staffFormError, setStaffFormError] = useState('');
   const [staffFormSubmitting, setStaffFormSubmitting] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  const fetchStaff = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetchWithAuth('/api/staff/admin');
-      const d = await res.json();
-      if (res.ok) setStaff(d.staff || []);
-      else setError(d.error || 'Failed to load staff');
-    } catch (err) { setError(err.message); }
-    finally { setLoading(false); }
-  }, [fetchWithAuth]);
-
-  const fetchServices = useCallback(async () => {
-    try {
-      const res = await fetchWithAuth('/api/admin/services');
-      const d = await res.json();
-      if (res.ok) setServices(d.services || []);
-    } catch { /* silent */ }
-  }, [fetchWithAuth]);
-
-  useEffect(() => { fetchStaff(); fetchServices(); }, [fetchStaff, fetchServices]);
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([
+      fetchWithAuth('/api/staff/admin'),
+      fetchWithAuth('/api/admin/services'),
+    ]).then(async ([staffRes, svcRes]) => {
+      if (cancelled) return;
+      const staffData = staffRes.ok ? await staffRes.json() : { staff: [] };
+      const svcData = svcRes.ok ? await svcRes.json() : { services: [] };
+      if (!cancelled) {
+        setStaff(staffData.staff || []);
+        setServices(svcData.services || []);
+        setLoading(false);
+      }
+    }).catch(err => {
+      if (!cancelled) { setError(err.message); setLoading(false); }
+    });
+    return () => { cancelled = true; };
+  }, [fetchWithAuth, refreshKey]);
 
   async function handleCreateStaff(e) {
     e.preventDefault();
@@ -90,7 +90,7 @@ export default function StaffTab() {
       toast.success('Staff member added successfully');
       setFormOpen(false);
       setStaffForm({ firstName: '', lastName: '', email: '', phone: '', role: '', serviceIds: [] });
-      fetchStaff();
+      setRefreshKey(k => k + 1);
     } catch (err) { setStaffFormError(err.message); }
     setStaffFormSubmitting(false);
   }
@@ -101,7 +101,7 @@ export default function StaffTab() {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_active: member.is_active ? false : true }),
       });
-      fetchStaff();
+      setRefreshKey(k => k + 1);
     } catch { /* silent */ }
   }
 
@@ -116,7 +116,7 @@ export default function StaffTab() {
       if (res.ok) {
         toast.success(`${member.name} promoted to admin`);
         setPromoteConfirm({ open: false, member: null });
-        fetchStaff();
+        setRefreshKey(k => k + 1);
       }
     } catch { /* silent */ }
   }
@@ -129,7 +129,7 @@ export default function StaffTab() {
   }
 
   if (loading) return <Spinner />;
-  if (error) return <ErrorBlock message={error} onRetry={fetchStaff} />;
+  if (error) return <ErrorBlock message={error} onRetry={() => setRefreshKey(k => k + 1)} />;
 
   const filteredStaff = staffSearch
     ? staff.filter(m => m.name?.toLowerCase().includes(staffSearch.toLowerCase()) || m.email?.toLowerCase().includes(staffSearch.toLowerCase()) || (m.title || '').toLowerCase().includes(staffSearch.toLowerCase()))

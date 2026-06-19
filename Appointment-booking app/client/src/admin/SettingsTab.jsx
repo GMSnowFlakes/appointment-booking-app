@@ -26,14 +26,16 @@ export default function SettingsTab() {
 
   useEffect(() => {
     if (settings && !loaded) {
-      setForm({
-        business_name: settings.business_name || '',
-        business_type: settings.business_type || 'salon',
-        business_description: settings.business_description || '',
-        primary_color: settings.primary_color || '#e11d48',
-        category_colors: settings.category_colors || {},
+      queueMicrotask(() => {
+        setForm({
+          business_name: settings.business_name || '',
+          business_type: settings.business_type || 'salon',
+          business_description: settings.business_description || '',
+          primary_color: settings.primary_color || '#e11d48',
+          category_colors: settings.category_colors || {},
+        });
+        setLoaded(true);
       });
-      setLoaded(true);
     }
   }, [settings, loaded]);
 

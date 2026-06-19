@@ -5,12 +5,12 @@ import { useBusiness } from '../context/BusinessContext';
 // ─── Tab Icons (minimal inline SVGs) ────────
 
 const TabIcon = {
-  dashboard: (active) => (
+  dashboard: () => (
     <svg className="w-5 h-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M2 3h6v6H2V3zM12 3h6v6h-6V3zM2 13h6v6H2v-6zM12 13h6v6h-6v-6z" />
     </svg>
   ),
-  appointments: (active) => (
+  appointments: () => (
     <svg className="w-5 h-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
       <path d="M6 4.5h11M6 10h11M6 15.5h11" />
       <circle cx="2.5" cy="4.5" r="1" fill="currentColor" stroke="none" />
@@ -18,39 +18,39 @@ const TabIcon = {
       <circle cx="2.5" cy="15.5" r="1" fill="currentColor" stroke="none" />
     </svg>
   ),
-  users: (active) => (
+  users: () => (
     <svg className="w-5 h-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
       <path d="M14 16v-1a3 3 0 00-3-3H5a3 3 0 00-3 3v1" />
       <circle cx="8" cy="5" r="3" />
       <path d="M18 16v-1a3 3 0 00-2-2.87M13 3.13a3 3 0 010 5.74" />
     </svg>
   ),
-  growth: (active) => (
+  growth: () => (
     <svg className="w-5 h-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
       <path d="M2 18h16" />
       <path d="M6 14V8M11 14V4M16 14v-4" />
       <path d="M2 6l4-4 4 4" strokeDasharray="2 2" opacity="0.4" />
     </svg>
   ),
-  more: (active) => (
+  more: () => (
     <svg className="w-5 h-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
       <circle cx="10" cy="4" r="1.5" fill="currentColor" stroke="none" />
       <circle cx="10" cy="10" r="1.5" fill="currentColor" stroke="none" />
       <circle cx="10" cy="16" r="1.5" fill="currentColor" stroke="none" />
     </svg>
   ),
-  services: (active) => (
+  services: () => (
     <svg className="w-5 h-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
       <path d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
     </svg>
   ),
-  book: (active) => (
+  book: () => (
     <svg className="w-5 h-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
       <rect x="1.5" y="3.5" width="17" height="15" rx="2" />
       <path d="M1.5 8.5h17M6 1.5V5.5M14 1.5V5.5M14 12.5l-3 3-1.5-1.5" />
     </svg>
   ),
-  profile: (active) => (
+  profile: () => (
     <svg className="w-5 h-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
       <path d="M14 16v-1a3 3 0 00-3-3H5a3 3 0 00-3 3v1" />
       <circle cx="8" cy="5" r="3" />

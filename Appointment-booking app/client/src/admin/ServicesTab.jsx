@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { ServiceFormModal, Spinner, ErrorBlock, EmptyBlock, Icon, downloadCsv } from './shared';
@@ -14,21 +14,23 @@ export default function ServicesTab() {
   const [editingService, setEditingService] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, service: null });
   const [restoreConfirm, setRestoreConfirm] = useState({ open: false, service: null });
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const exportServices = downloadCsv(fetchWithAuth, '/api/export/services', `services_${new Date().toISOString().slice(0, 10)}.csv`);
 
-  const fetchServices = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetchWithAuth('/api/admin/services');
+  useEffect(() => {
+    let cancelled = false;
+    fetchWithAuth('/api/admin/services').then(async res => {
       const data = await res.json();
-      if (res.ok) setServices(data.services);
-      else setError(data.error || 'Failed to load services');
-    } catch (err) { setError(err.message); }
-    finally { setLoading(false); }
-  }, [fetchWithAuth]);
-
-  useEffect(() => { fetchServices(); }, [fetchServices]);
+      if (!cancelled) {
+        if (res.ok) { setServices(data.services); setLoading(false); }
+        else { setError(data.error || 'Failed to load services'); setLoading(false); }
+      }
+    }).catch(err => {
+      if (!cancelled) { setError(err.message); setLoading(false); }
+    });
+    return () => { cancelled = true; };
+  }, [fetchWithAuth, refreshKey]);
 
   function openEdit(svc) { setEditingService(svc); setFormOpen(true); }
   function openCreate() { setEditingService(null); setFormOpen(true); }
@@ -38,7 +40,7 @@ export default function ServicesTab() {
     if (!svc) return;
     try {
       const res = await fetchWithAuth(`/api/admin/services/${svc.id}`, { method: 'DELETE' });
-      if (res.ok) { toast.success('Service deactivated'); setDeleteConfirm({ open: false, service: null }); fetchServices(); }
+      if (res.ok) { toast.success('Service deactivated'); setDeleteConfirm({ open: false, service: null }); setRefreshKey(k => k + 1); }
     } catch { /* silent */ }
   }
 
@@ -47,12 +49,12 @@ export default function ServicesTab() {
     if (!svc) return;
     try {
       const res = await fetchWithAuth(`/api/admin/services/${svc.id}/restore`, { method: 'POST' });
-      if (res.ok) { toast.success('Service restored'); setRestoreConfirm({ open: false, service: null }); fetchServices(); }
+      if (res.ok) { toast.success('Service restored'); setRestoreConfirm({ open: false, service: null }); setRefreshKey(k => k + 1); }
     } catch { /* silent */ }
   }
 
   if (loading) return <Spinner />;
-  if (error) return <ErrorBlock message={error} onRetry={fetchServices} />;
+  if (error) return <ErrorBlock message={error} onRetry={() => setRefreshKey(k => k + 1)} />;
 
   const active = services.filter(s => s.is_active);
   const inactive = services.filter(s => !s.is_active);
@@ -136,7 +138,7 @@ export default function ServicesTab() {
       )}
 
       <ServiceFormModal open={formOpen} service={editingService}
-        onClose={() => { setFormOpen(false); setEditingService(null); }} onSaved={fetchServices} />
+        onClose={() => { setFormOpen(false); setEditingService(null); }} onSaved={() => setRefreshKey(k => k + 1)} />
 
       <ConfirmDialog open={deleteConfirm.open} title="Deactivate Service?"
         message={deleteConfirm.service ? `Deactivate "${deleteConfirm.service.name}"? It will no longer be available for booking.` : ''}

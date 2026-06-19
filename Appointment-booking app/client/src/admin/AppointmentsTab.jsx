@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Spinner, ErrorBlock, EmptyBlock, Icon, downloadCsv } from './shared';
 import ImportCsvModal from '../components/ImportCsvModal';
@@ -8,39 +8,54 @@ export default function AppointmentsTab() {
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [page, setPage] = useState(1);
+  const [query, setQuery] = useState({ page: 1, status: '' });
   const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 0 });
   const [importOpen, setImportOpen] = useState(false);
 
   const exportAppointments = downloadCsv(fetchWithAuth, '/api/export/appointments', `appointments_${new Date().toISOString().slice(0, 10)}.csv`);
 
-  const fetchAppointments = useCallback(async (pageOverride) => {
-    const cp = pageOverride ?? page;
-    setLoading(true);
-    setError('');
-    try {
-      const params = new URLSearchParams();
-      params.set('page', String(cp));
-      params.set('limit', '10');
-      if (statusFilter) params.set('status', statusFilter);
-      const res = await fetchWithAuth(`/api/admin/appointments?${params}`);
-      const data = await res.json();
-      if (res.ok) { setAppointments(data.appointments); if (data.pagination) setPagination(data.pagination); }
-      else setError(data.error || 'Failed to load appointments');
-    } catch (err) { setError(err.message); }
-    finally { setLoading(false); }
-  }, [fetchWithAuth, page, statusFilter]);
+  useEffect(() => {
+    let cancelled = false;
+    const fetchData = async () => {
+      try {
+        const params = new URLSearchParams();
+        params.set('page', String(query.page));
+        params.set('limit', '10');
+        if (query.status) params.set('status', query.status);
+        const res = await fetchWithAuth(`/api/admin/appointments?${params}`);
+        const data = await res.json();
+        if (!cancelled) {
+          if (res.ok) {
+            setAppointments(data.appointments);
+            if (data.pagination) setPagination(data.pagination);
+            setLoading(false);
+            setError('');
+          } else {
+            setError(data.error || 'Failed to load appointments');
+            setLoading(false);
+          }
+        }
+      } catch (err) {
+        if (!cancelled) { setError(err.message); setLoading(false); }
+      }
+    };
+    fetchData();
+    return () => { cancelled = true; };
+  }, [fetchWithAuth, query]);
 
-  useEffect(() => { setPage(1); fetchAppointments(1); }, [statusFilter, fetchAppointments]);
-  useEffect(() => { if (page > 1) fetchAppointments(page); }, [page, fetchAppointments]);
+  function handleStatusFilterChange(newStatus) {
+    setQuery({ page: 1, status: newStatus });
+  }
+
+  function handlePageClick(newPage) {
+    setQuery(prev => ({ ...prev, page: newPage }));
+  }
 
   async function updateStatus(id, status) {
     try {
       await fetchWithAuth(`/api/admin/appointments/${id}/status`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }),
       });
-      fetchAppointments();
     } catch { /* silent */ }
   }
 
@@ -51,7 +66,7 @@ export default function AppointmentsTab() {
   };
 
   if (loading) return <Spinner />;
-  if (error) return <ErrorBlock message={error} onRetry={fetchAppointments} />;
+  if (error) return <ErrorBlock message={error} onRetry={() => setQuery(q => ({ ...q }))} />;
 
   return (
     <div>
@@ -71,14 +86,14 @@ export default function AppointmentsTab() {
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
             Export CSV
           </button>
-          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
+          <select value={query.status} onChange={e => handleStatusFilterChange(e.target.value)}
             className="px-3 py-2 bg-surface-warm border border-border rounded-xl text-sm focus:outline-none focus:border-primary transition-all">
             <option value="">All Statuses</option>
             <option value="confirmed">Confirmed</option>
             <option value="cancelled">Cancelled</option>
             <option value="completed">Completed</option>
           </select>
-          <button onClick={fetchAppointments} className="p-2 text-text-secondary hover:text-primary hover:bg-primary-bg rounded-xl transition-colors" title="Refresh">
+          <button onClick={() => setQuery(q => ({ ...q }))} className="p-2 text-text-secondary hover:text-primary hover:bg-primary-bg rounded-xl transition-colors" title="Refresh">
             <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path d="M1 8a7 7 0 0113-3M15 1v4h-4" strokeLinecap="round" strokeLinejoin="round" />
               <path d="M15 8a7 7 0 01-13 3M1 15v-4h4" strokeLinecap="round" strokeLinejoin="round" />
@@ -133,13 +148,13 @@ export default function AppointmentsTab() {
             <div className="flex flex-col sm:flex-row items-center justify-between mt-6 pt-4 border-t border-border gap-4">
               <p className="text-sm text-text-muted">Showing {(pagination.page - 1) * pagination.limit + 1}&ndash;{Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total}</p>
               <div className="flex items-center gap-1.5">
-                <button disabled={pagination.page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}
+                <button disabled={pagination.page <= 1} onClick={() => handlePageClick(pagination.page - 1)}
                   className="px-3 py-1.5 text-xs font-medium rounded-xl border border-border text-text-secondary hover:bg-surface-alt transition-all disabled:opacity-30">◀ Prev</button>
                 {Array.from({ length: pagination.totalPages }, (_, i) => i + 1).map(p => (
-                  <button key={p} onClick={() => setPage(p)}
-                    className={`w-9 h-9 text-xs font-medium rounded-xl transition-all ${p === pagination.page ? 'bg-primary text-white shadow-sm' : 'border border-border text-text-secondary hover:bg-surface-alt'}`}>{p}</button>
+                  <button key={p} onClick={() => handlePageClick(p)}
+                    className={`w-9 h-9 text-xs font-medium rounded-xl transition-all ${p === query.page ? 'bg-primary text-white shadow-sm' : 'border border-border text-text-secondary hover:bg-surface-alt'}`}>{p}</button>
                 ))}
-                <button disabled={pagination.page >= pagination.totalPages} onClick={() => setPage(p => Math.min(pagination.totalPages, p + 1))}
+                <button disabled={pagination.page >= pagination.totalPages} onClick={() => handlePageClick(pagination.page + 1)}
                   className="px-3 py-1.5 text-xs font-medium rounded-xl border border-border text-text-secondary hover:bg-surface-alt transition-all disabled:opacity-30">Next ▶</button>
               </div>
             </div>
@@ -154,7 +169,7 @@ export default function AppointmentsTab() {
         templateEndpoint="/api/import/appointments/template"
         title="Import Appointments"
         description="Upload a CSV with customer_email, service_name, date, and time. Existing customers are matched by email; new ones are auto-created."
-        onImported={() => fetchAppointments()}
+        onImported={() => setQuery(q => ({ ...q }))}
       />
     </div>
   );

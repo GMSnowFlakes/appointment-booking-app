@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useBusiness } from '../context/BusinessContext';
@@ -29,19 +29,21 @@ export default function BusinessOverview() {
   const [todayApts, setTodayApts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
   const primaryColor = settings?.primary_color || '#e11d48';
 
-  const loadDashboard = useCallback(() => {
-    setLoading(true);
-    setLoadError(false);
+  useEffect(() => {
+    let cancelled = false;
     Promise.all([
       fetchWithAuth('/api/analytics/summary?period=all'),
       fetchWithAuth('/api/admin/appointments?limit=5&sort=date:asc'),
     ]).then(async ([anlRes, todayRes]) => {
+      if (cancelled) return;
       let anl, today;
       try { anl = anlRes.ok ? await anlRes.json() : { summary: {} }; } catch { anl = { summary: {} }; }
       try { today = todayRes.ok ? await todayRes.json() : { appointments: [] }; } catch { today = { appointments: [] }; }
+      if (cancelled) return;
       const s = anl.summary || {};
       setData({
         todayBookings: s.today_bookings || 0,
@@ -59,10 +61,12 @@ export default function BusinessOverview() {
       });
       setTodayApts(today.appointments || []);
       setLoading(false);
-    }).catch(() => { setLoadError(true); setLoading(false); });
-  }, [fetchWithAuth]);
-
-  useEffect(() => { loadDashboard(); }, [loadDashboard]);
+      setLoadError(false);
+    }).catch(() => {
+      if (!cancelled) { setLoadError(true); setLoading(false); }
+    });
+    return () => { cancelled = true; };
+  }, [fetchWithAuth, retryCount]);
 
   // ── Computed trends ──────────────────────────
 
@@ -101,7 +105,7 @@ export default function BusinessOverview() {
         </div>
         <h3 className="text-lg font-semibold text-text mb-2">Unable to load dashboard data</h3>
         <p className="text-text-secondary text-sm mb-6 max-w-sm text-center">Please try again or contact support if the problem persists.</p>
-        <button onClick={loadDashboard} className="px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary-dark transition-colors shadow-sm">Retry</button>
+        <button onClick={() => setRetryCount(c => c + 1)} className="px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary-dark transition-colors shadow-sm">Retry</button>
       </div>
     );
   }

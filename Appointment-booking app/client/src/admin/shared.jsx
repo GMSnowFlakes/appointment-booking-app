@@ -148,15 +148,17 @@ export function ServiceFormModal({ open, service, onClose, onSaved }) {
 
   useEffect(() => {
     if (open) {
-      if (service) setForm({
-        name: service.name || '', description: service.description || '',
-        duration: service.duration || 30, price: String(service.price || ''),
-        category: service.category || '', image_url: service.image_url || '',
+      queueMicrotask(() => {
+        if (service) setForm({
+          name: service.name || '', description: service.description || '',
+          duration: service.duration || 30, price: String(service.price || ''),
+          category: service.category || '', image_url: service.image_url || '',
+        });
+        else setForm({ name: '', description: '', duration: 30, price: '', category: '', image_url: '' });
+        setImageFile(null);
+        setImagePreview('');
+        setError('');
       });
-      else setForm({ name: '', description: '', duration: 30, price: '', category: '', image_url: '' });
-      setImageFile(null);
-      setImagePreview('');
-      setError('');
     }
   }, [open, service]);
 
