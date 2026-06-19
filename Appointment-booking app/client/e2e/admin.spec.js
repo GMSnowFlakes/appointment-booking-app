@@ -18,6 +18,9 @@ function getTestConfig() {
   return JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 }
 
+const HEADER_SIGN_IN = 'header.top-header button:has-text("Sign in")';
+const HEADER_USER_NAME = '.top-header';
+
 test.describe('Admin Dashboard', () => {
   let adminUser;
   let testConfig;
@@ -68,22 +71,26 @@ test.describe('Admin Dashboard', () => {
   async function loginAsAdmin(page) {
     await page.goto('/');
     await page.waitForLoadState('domcontentloaded');
-    await page.locator('nav button', { hasText: 'Sign in' }).click();
+    await page.locator(HEADER_SIGN_IN).click();
     await page.waitForSelector('input[type="email"]', { timeout: 10_000 });
     await page.fill('input[type="email"]', adminUser.email);
     await page.fill('input[type="password"]', adminUser.password);
     await page.locator('button[type="submit"]').click();
-    // Wait for navbar to show user's name (SPA - no URL navigation)
-    await expect(page.locator('nav')).toContainText(adminUser.name, { timeout: 15_000 });
+    // Wait for header to show user's name (SPA - no URL navigation)
+    await expect(page.locator(HEADER_USER_NAME)).toContainText(adminUser.name, { timeout: 15_000 });
   }
 
-  test('should show admin tab for admin users', async ({ page }) => {
+  test('should show admin dashboard for admin users', async ({ page }) => {
     await loginAsAdmin(page);
-    const adminNav = page.locator('nav button', { hasText: 'Admin' });
-    await expect(adminNav).toBeVisible({ timeout: 5_000 });
+    // Admin users land on the admin dashboard (Business Overview)
+    // The page shows an "Administration" badge and "Business Overview" heading
+    await expect(page.locator('text=Administration').first()).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator('h1:has-text("Business Overview")').first()).toBeVisible({ timeout: 5_000 });
+    // Sidebar should contain admin-only items like "Analytics & Reports"
+    await expect(page.locator('.sidebar-nav button:has-text("Analytics & Reports")').first()).toBeVisible({ timeout: 5_000 });
   });
 
-  test('should not show admin tab for regular users', async ({ page }) => {
+  test('should not show admin sidebar items for regular users', async ({ page }) => {
     const user = createTestUser();
 
     // Register via API
@@ -94,42 +101,36 @@ test.describe('Admin Dashboard', () => {
     // Login
     await page.goto('/');
     await page.waitForLoadState('domcontentloaded');
-    await page.locator('nav button', { hasText: 'Sign In' }).click();
+    await page.locator(HEADER_SIGN_IN).click();
     await page.waitForSelector('input[type="email"]', { timeout: 10_000 });
     await page.fill('input[type="email"]', user.email);
     await page.fill('input[type="password"]', user.password);
     await page.locator('button[type="submit"]').click();
-    await expect(page.locator('nav')).toContainText(user.name, { timeout: 15_000 });
+    await expect(page.locator(HEADER_USER_NAME)).toContainText(user.name, { timeout: 15_000 });
 
-    // Admin tab should NOT be visible for regular users
-    await expect(page.locator('nav button', { hasText: 'Admin' })).not.toBeVisible();
+    // Admin-only sidebar items should NOT be visible for regular users
+    await expect(page.locator('.sidebar-nav button:has-text("Analytics & Reports")')).not.toBeVisible();
+    await expect(page.locator('.sidebar-nav button:has-text("Business Settings")')).not.toBeVisible();
   });
 
   test('admin dashboard should show stats cards', async ({ page }) => {
     await loginAsAdmin(page);
 
-    // Navigate to admin
-    await page.locator('nav button', { hasText: 'Admin' }).click();
-    await page.waitForLoadState('domcontentloaded');
-
     // Should see the admin dashboard header
-    await expect(page.locator('h1:has-text("Dashboard"), text=ADMINISTRATION')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('text=ADMINISTRATION')).toBeVisible({ timeout: 10_000 });
 
-    // Should see stats cards
-    await expect(page.locator('text=Active services')).toBeVisible({ timeout: 5_000 });
-    await expect(page.locator('text=Appointments')).toBeVisible({ timeout: 5_000 });
-    await expect(page.locator('text=registered users')).toBeVisible({ timeout: 5_000 });
+    // Should see the 6 metric cards from the redesigned dashboard
+    await expect(page.locator('text=Today\'s Appointments').first()).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator('text=Revenue This Month').first()).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator('text=Active Customers').first()).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator('text=Avg Booking Value').first()).toBeVisible({ timeout: 5_000 });
   });
 
   test('admin services tab should list seeded services', async ({ page }) => {
     await loginAsAdmin(page);
 
-    // Navigate to admin
-    await page.locator('nav button', { hasText: 'Admin' }).click();
-    await page.waitForLoadState('domcontentloaded');
-
-    // Click the Services tab in the admin tab bar
-    await page.locator('button:has-text("Services"):not(nav *)').first().click();
+    // Click the Services item in the sidebar
+    await page.locator('.sidebar-nav button:has-text("Services")').first().click();
     await page.waitForLoadState('domcontentloaded');
 
     // Should see seed services listed
@@ -140,23 +141,18 @@ test.describe('Admin Dashboard', () => {
   test('should allow creating a new service', async ({ page }) => {
     await loginAsAdmin(page);
 
-    // Navigate to admin
-    await page.locator('nav button', { hasText: 'Admin' }).click();
+    // Click the Services item in the sidebar
+    await page.locator('.sidebar-nav button:has-text("Services")').first().click();
     await page.waitForLoadState('domcontentloaded');
 
-    // Click the Services tab in the admin tab bar
-    await page.locator('button:has-text("Services"):not(nav *)').first().click();
-    await page.waitForLoadState('domcontentloaded');
-
-    // Click Add Service button
-    await page.locator('button:has-text("Add Service"):not(nav *)').click();
+    // Click Add Service button (not in sidebar — it's in the services tab content)
+    await page.locator('button:has-text("Add Service")').first().click();
 
     // Wait for the service form modal to appear
     await expect(page.locator('text=Add New Service')).toBeVisible({ timeout: 5_000 });
 
-    // Fill the service name (first text input in the modal)
-    const modalTextInputs = page.locator('text=Add New Service').locator('..').locator('input[type="text"]');
-    await modalTextInputs.first().fill('E2E Test Service');
+    // Fill the service name
+    await page.locator('h2:has-text("Add New Service")').locator('..').locator('input[type="text"]').first().fill('E2E Test Service');
 
     // Fill duration (first number input)
     const numberInputs = page.locator('input[type="number"]');
@@ -185,13 +181,8 @@ test.describe('Admin Dashboard', () => {
   test('admin appointments tab should load with filter', async ({ page }) => {
     await loginAsAdmin(page);
 
-    // Navigate to admin
-    await page.locator('nav button', { hasText: 'Admin' }).click();
-    await page.waitForLoadState('domcontentloaded');
-
-    // Click Appointments tab (in the tab bar, not navbar)
-    const tabBar = page.locator('button:has-text("Appointments"):not(nav *)');
-    await tabBar.first().click();
+    // Click Appointments in the sidebar
+    await page.locator('.sidebar-nav button:has-text("Appointments")').first().click();
     await page.waitForLoadState('domcontentloaded');
 
     // Should see the appointments section
@@ -205,13 +196,8 @@ test.describe('Admin Dashboard', () => {
   test('admin users tab should load user list', async ({ page }) => {
     await loginAsAdmin(page);
 
-    // Navigate to admin
-    await page.locator('nav button', { hasText: 'Admin' }).click();
-    await page.waitForLoadState('domcontentloaded');
-
-    // Click Users tab (in the tab bar, not navbar)
-    const usersTab = page.locator('button:has-text("Users"):not(nav *)');
-    await usersTab.first().click();
+    // Click Customers in the sidebar (admin sidebar labels it "Customers")
+    await page.locator('.sidebar-nav button:has-text("Customers")').first().click();
     await page.waitForLoadState('domcontentloaded');
 
     // Should see user management

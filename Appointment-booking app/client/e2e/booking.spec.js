@@ -6,6 +6,8 @@
 import { test, expect } from '@playwright/test';
 import { createTestUser } from './helpers.js';
 
+const HEADER_SIGN_IN = 'header.top-header button:has-text("Sign in")';
+
 test.describe('Services', () => {
 
   test('should display services on the landing page', async ({ page }) => {
@@ -63,10 +65,13 @@ test.describe('Services', () => {
 test.describe('Book Appointment', () => {
 
   test('should require authentication to book', async ({ page }) => {
-    // Without being logged in, "Book" should not be in the navbar
+    // Without being logged in, the sidebar (which contains "Book") is not rendered
     await page.goto('/');
     await page.waitForLoadState('domcontentloaded');
-    await expect(page.locator('nav button', { hasText: 'Book' })).not.toBeVisible();
+    // The sidebar is an <aside> with class "sidebar" — it should not exist for unauthenticated users
+    await expect(page.locator('aside.sidebar')).not.toBeVisible();
+    // The "Book" button inside the sidebar should not exist
+    await expect(page.locator('.sidebar-nav button:has-text("Book")')).not.toBeVisible();
   });
 
   test('should show booking form for authenticated users', async ({ page }) => {
@@ -81,15 +86,15 @@ test.describe('Book Appointment', () => {
     // Login via UI
     await page.goto('/');
     await page.waitForLoadState('domcontentloaded');
-    await page.locator('nav button', { hasText: 'Sign in' }).click();
+    await page.locator(HEADER_SIGN_IN).click();
     await page.waitForSelector('input[type="email"]', { timeout: 10_000 });
     await page.fill('input[type="email"]', user.email);
     await page.fill('input[type="password"]', user.password);
     await page.locator('button[type="submit"]').click();
-    await expect(page.locator('nav')).toContainText(user.name, { timeout: 15_000 });
+    await expect(page.locator('.top-header')).toContainText(user.name, { timeout: 15_000 });
 
-    // Navigate to Book
-    await page.locator('nav button', { hasText: 'Book' }).click();
+    // Navigate to Book via sidebar
+    await page.locator('.sidebar-nav button:has-text("Book")').click();
 
     // Wait for the booking form to load with services
     await expect(page.locator('text=Choose a Service')).toBeVisible({ timeout: 10_000 });
@@ -113,15 +118,15 @@ test.describe('View and Manage Appointments', () => {
     // Login via UI
     await page.goto('/');
     await page.waitForLoadState('domcontentloaded');
-    await page.locator('nav button', { hasText: 'Sign in' }).click();
+    await page.locator(HEADER_SIGN_IN).click();
     await page.waitForSelector('input[type="email"]', { timeout: 10_000 });
     await page.fill('input[type="email"]', user.email);
     await page.fill('input[type="password"]', user.password);
     await page.locator('button[type="submit"]').click();
-    await expect(page.locator('nav')).toContainText(user.name, { timeout: 15_000 });
+    await expect(page.locator('.top-header')).toContainText(user.name, { timeout: 15_000 });
 
-    // Navigate to Appointments
-    await page.locator('nav button', { hasText: 'Appointments' }).click();
+    // Navigate to Appointments via sidebar
+    await page.locator('.sidebar-nav button:has-text("Appointments")').click();
     await page.waitForLoadState('domcontentloaded');
 
     // Should see the appointments page header
@@ -142,19 +147,19 @@ test.describe('View and Manage Appointments', () => {
     // Login via UI
     await page.goto('/');
     await page.waitForLoadState('domcontentloaded');
-    await page.locator('nav button', { hasText: 'Sign In' }).click();
+    await page.locator(HEADER_SIGN_IN).click();
     await page.waitForSelector('input[type="email"]', { timeout: 10_000 });
     await page.fill('input[type="email"]', user.email);
     await page.fill('input[type="password"]', user.password);
     await page.locator('button[type="submit"]').click();
-    await expect(page.locator('nav')).toContainText(user.name, { timeout: 15_000 });
+    await expect(page.locator('.top-header')).toContainText(user.name, { timeout: 15_000 });
 
-    // Go to appointments
-    await page.locator('nav button', { hasText: 'Appointments' }).click();
+    // Go to appointments via sidebar
+    await page.locator('.sidebar-nav button:has-text("Appointments")').click();
     await page.waitForLoadState('domcontentloaded');
 
-    // Verify filter tabs
-    const allTab = page.locator('button:has-text("All"):not(nav *)').first();
+    // Verify filter tabs — these are inside the main content, not in the sidebar
+    const allTab = page.locator('button:has-text("All")').first();
     const upcomingTab = page.locator('button:has-text("Upcoming")').first();
     const pastTab = page.locator('button:has-text("Past")').first();
 
@@ -164,7 +169,6 @@ test.describe('View and Manage Appointments', () => {
 
     // Click each filter tab and verify it becomes active
     await upcomingTab.click();
-    // The "Upcoming" tab should have the primary background when active
     await page.waitForTimeout(500);
 
     await allTab.click();

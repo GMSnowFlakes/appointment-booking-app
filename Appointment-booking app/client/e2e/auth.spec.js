@@ -6,6 +6,9 @@
 import { test, expect } from '@playwright/test';
 import { createTestUser } from './helpers.js';
 
+const HEADER_GET_STARTED = 'header.top-header button:has-text("Get Started")';
+const HEADER_SIGN_IN = 'header.top-header button:has-text("Sign in")';
+
 test.describe('Authentication', () => {
 
   /**
@@ -16,8 +19,8 @@ test.describe('Authentication', () => {
     await page.goto('/');
     await page.waitForLoadState('domcontentloaded');
 
-    // Click Register in the navbar
-    await page.locator('nav button', { hasText: 'Get Started' }).click();
+    // Click Get Started in the header
+    await page.locator(HEADER_GET_STARTED).click();
 
     // Wait for the auth form email input to appear
     await page.waitForSelector('input[type="email"]', { timeout: 10_000 });
@@ -30,9 +33,9 @@ test.describe('Authentication', () => {
     await page.fill('input[type="email"]', user.email);
     await page.fill('input[type="password"]', user.password);
 
-    // Click submit and wait for navbar to show user's name
+    // Click submit and wait for header to show user's name
     await page.locator('button[type="submit"]').click();
-    await expect(page.locator('nav')).toContainText(user.name, { timeout: 15_000 });
+    await expect(page.locator('.top-header')).toContainText(user.name, { timeout: 15_000 });
   }
 
   test.describe('Registration', () => {
@@ -41,7 +44,7 @@ test.describe('Authentication', () => {
       const user = createTestUser();
       await registerViaUI(page, user);
       // If we got here without error, registration succeeded
-      await expect(page.locator('nav')).toContainText(user.name);
+      await expect(page.locator('.top-header')).toContainText(user.name);
     });
 
     test('should show error for duplicate email registration', async ({ page }) => {
@@ -50,12 +53,21 @@ test.describe('Authentication', () => {
       // Register the first time
       await registerViaUI(page, user);
 
-      // Sign out
-      await page.locator('nav button', { hasText: 'Sign out' }).click();
-      await page.waitForSelector('nav button:has-text("Sign in")', { timeout: 10_000 });
+      // Sign out (logout button is in the sidebar footer)
+      // First open sidebar if collapsed on mobile, then click Sign out
+      const logoutBtn = page.locator('aside.sidebar button[title="Sign out"]');
+      if (await logoutBtn.isVisible()) {
+        await logoutBtn.click();
+      } else {
+        // Sidebar might be collapsed — open it first
+        await page.locator('header button[aria-label="Toggle sidebar"]').click();
+        await page.waitForTimeout(500);
+        await page.locator('aside.sidebar button[title="Sign out"]').click();
+      }
+      await page.waitForSelector(HEADER_GET_STARTED, { timeout: 10_000 });
 
       // Try to register again with the same email
-      await page.locator('nav button', { hasText: 'Get Started' }).click();
+      await page.locator(HEADER_GET_STARTED).click();
       await page.waitForSelector('input[type="email"]', { timeout: 10_000 });
 
       // Fill form with same email, different name
@@ -82,7 +94,7 @@ test.describe('Authentication', () => {
     test('should show validation errors for empty registration', async ({ page }) => {
       await page.goto('/');
       await page.waitForLoadState('domcontentloaded');
-      await page.locator('nav button', { hasText: 'Get Started' }).click();
+      await page.locator(HEADER_GET_STARTED).click();
       await page.waitForSelector('input[type="email"]', { timeout: 10_000 });
 
       // Submit with empty fields — client-side validation fires first
@@ -108,8 +120,8 @@ test.describe('Authentication', () => {
       await page.goto('/');
       await page.waitForLoadState('domcontentloaded');
 
-      // Click Sign in
-      await page.locator('nav button', { hasText: 'Sign in' }).click();
+      // Click Sign in in the header
+      await page.locator(HEADER_SIGN_IN).click();
       await page.waitForSelector('input[type="email"]', { timeout: 10_000 });
 
       // Wait for the login form heading
@@ -119,15 +131,15 @@ test.describe('Authentication', () => {
       await page.fill('input[type="email"]', user.email);
       await page.fill('input[type="password"]', user.password);
 
-      // Submit and wait for navbar to show user's name
+      // Submit and wait for header to show user's name
       await page.locator('button[type="submit"]').click();
-      await expect(page.locator('nav')).toContainText(user.name, { timeout: 15_000 });
+      await expect(page.locator('.top-header')).toContainText(user.name, { timeout: 15_000 });
     });
 
     test('should show error for invalid credentials', async ({ page }) => {
       await page.goto('/');
       await page.waitForLoadState('domcontentloaded');
-      await page.locator('nav button', { hasText: 'Sign in' }).click();
+      await page.locator(HEADER_SIGN_IN).click();
       await page.waitForSelector('input[type="email"]', { timeout: 10_000 });
 
       await page.fill('input[type="email"]', 'nonexistent@test.com');
@@ -156,20 +168,23 @@ test.describe('Authentication', () => {
 
       // Login via UI
       await page.goto('/');
-      await page.waitForLoadState('domcontentloaded');      await page.locator('nav button', { hasText: 'Sign in' }).click();
+      await page.waitForLoadState('domcontentloaded');
+      await page.locator(HEADER_SIGN_IN).click();
       await page.waitForSelector('input[type="email"]', { timeout: 10_000 });
       await page.fill('input[type="email"]', user.email);
       await page.fill('input[type="password"]', user.password);
       await page.locator('button[type="submit"]').click();
-      await expect(page.locator('nav')).toContainText(user.name, { timeout: 15_000 });
+      await expect(page.locator('.top-header')).toContainText(user.name, { timeout: 15_000 });
 
-      // Log out
-      await page.locator('nav button', { hasText: 'Sign out' }).click();
-      await page.waitForSelector('nav button:has-text("Sign in")', { timeout: 10_000 });
+      // Log out via the sidebar footer button
+      const logoutBtn = page.locator('aside.sidebar button[title="Sign out"]');
+      await expect(logoutBtn).toBeVisible({ timeout: 5_000 });
+      await logoutBtn.click();
+      await page.waitForSelector(HEADER_GET_STARTED, { timeout: 10_000 });
 
       // Should see Sign in and Get Started buttons
-      await expect(page.locator('nav button', { hasText: 'Sign in' })).toBeVisible();
-      await expect(page.locator('nav button', { hasText: 'Get Started' })).toBeVisible();
+      await expect(page.locator(HEADER_SIGN_IN)).toBeVisible();
+      await expect(page.locator(HEADER_GET_STARTED)).toBeVisible();
     });
   });
 });
