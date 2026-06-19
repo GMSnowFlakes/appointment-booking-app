@@ -7,7 +7,7 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const serverDir = path.resolve(__dirname, '../../server');
 const PORT = process.env.E2E_PORT || 3001;
-const CLIENT_PORT = 5173;
+const CLIENT_PORT = process.env.E2E_CLIENT_PORT || 5173;
 
 // Unique Postgres schema per test run for isolation (cleans up after itself)
 const testSchema = `e2e_${Date.now()}`;

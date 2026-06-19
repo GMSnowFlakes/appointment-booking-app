@@ -4,7 +4,17 @@
 // Tests: browse services, book appointment, view appointments, filter
 
 import { test, expect } from '@playwright/test';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 import { createTestUser } from './helpers.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+function getTestConfig() {
+  const configPath = path.resolve(__dirname, '.e2e-db-path.json');
+  return JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+}
 
 const HEADER_SIGN_IN = 'header.top-header button:has-text("Sign in")';
 
@@ -78,7 +88,8 @@ test.describe('Book Appointment', () => {
     const user = createTestUser();
 
     // Register via API for speed
-    const regRes = await page.request.post('http://localhost:3001/api/auth/register', {
+    const testConfig = getTestConfig();
+    const regRes = await page.request.post(`${testConfig.apiUrl}/api/auth/register`, {
       data: { name: user.name, email: user.email, password: user.password },
     });
     expect(regRes.ok()).toBeTruthy();
@@ -111,7 +122,8 @@ test.describe('View and Manage Appointments', () => {
     const user = createTestUser();
 
     // Register via API
-    await page.request.post('http://localhost:3001/api/auth/register', {
+    const testConfig = getTestConfig();
+    await page.request.post(`${testConfig.apiUrl}/api/auth/register`, {
       data: { name: user.name, email: user.email, password: user.password },
     });
 
@@ -129,8 +141,8 @@ test.describe('View and Manage Appointments', () => {
     await page.locator('.sidebar-nav button:has-text("Appointments")').click();
     await page.waitForLoadState('domcontentloaded');
 
-    // Should see the appointments page header
-    await expect(page.locator('h1:has-text("My Appointments")')).toBeVisible({ timeout: 10_000 });
+    // Should see the appointments page header (use first to avoid ambiguity with header brand)
+    await expect(page.locator('h1:has-text("My Appointments")').first()).toBeVisible({ timeout: 10_000 });
 
     // Should show empty state (no appointments yet)
     await expect(page.locator('text=No Appointments Yet')).toBeVisible({ timeout: 10_000 });
@@ -140,7 +152,8 @@ test.describe('View and Manage Appointments', () => {
     const user = createTestUser();
 
     // Register via API
-    await page.request.post('http://localhost:3001/api/auth/register', {
+    const testConfig = getTestConfig();
+    await page.request.post(`${testConfig.apiUrl}/api/auth/register`, {
       data: { name: user.name, email: user.email, password: user.password },
     });
 

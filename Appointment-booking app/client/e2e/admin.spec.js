@@ -94,7 +94,7 @@ test.describe('Admin Dashboard', () => {
     const user = createTestUser();
 
     // Register via API
-    await page.request.post('http://localhost:3001/api/auth/register', {
+    await page.request.post(`${testConfig.apiUrl}/api/auth/register`, {
       data: { name: user.name, email: user.email, password: user.password },
     });
 
@@ -151,30 +151,19 @@ test.describe('Admin Dashboard', () => {
     // Wait for the service form modal to appear
     await expect(page.locator('text=Add New Service')).toBeVisible({ timeout: 5_000 });
 
-    // Fill the service name
-    await page.locator('h2:has-text("Add New Service")').locator('..').locator('input[type="text"]').first().fill('E2E Test Service');
-
-    // Fill duration (first number input)
-    const numberInputs = page.locator('input[type="number"]');
-    await numberInputs.first().fill('30');
-
-    // Fill price (second number input)
-    await numberInputs.nth(1).fill('50');
-
-    // Fill category (second text input)
-    const allTextInputs = page.locator('input[type="text"]');
-    if (await allTextInputs.count() > 1) {
-      await allTextInputs.nth(1).fill('Testing');
-    }
-
-    // Fill description textarea
-    const textarea = page.locator('textarea');
+    // Fill the service form (inputs are inside the <form> inside the modal)
+    const form = page.locator('form').last();
+    await form.locator('input[type="text"]').first().fill('E2E Test Service');
+    await form.locator('input[type="number"]').first().fill('30');
+    await form.locator('input[type="number"]').nth(1).fill('50');
+    await form.locator('input[type="text"]').nth(1).fill('Testing');
+    const textarea = form.locator('textarea');
     if (await textarea.isVisible()) {
       await textarea.fill('Service created by E2E test');
     }
 
     // Submit and wait for the new service to appear in the table
-    await page.locator('button[type="submit"]:has-text("Create Service")').click();
+    await form.locator('button[type="submit"]').click();
     await expect(page.locator('text=E2E Test Service').first()).toBeVisible({ timeout: 10_000 });
   });
 

@@ -2,7 +2,7 @@
 // E2E Test Helpers
 // ──────────────────────────────────────────────
 
-const API_BASE = 'http://localhost:3001';
+const API_BASE = process.env.API_BASE || 'http://localhost:3001';
 
 let _uid = 0;
 function uid() {
